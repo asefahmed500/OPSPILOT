@@ -1,6 +1,6 @@
 import "server-only"
 import { db } from "@/lib/db"
-import { normalizeWorkflowActions, parseWorkflowPrompt, type WorkflowAction } from "@/lib/ops/rules"
+import { mergeWorkflowActions, normalizeWorkflowActions, parseWorkflowPrompt, type WorkflowAction } from "@/lib/ops/rules"
 import { AppError } from "@/lib/errors"
 import { sendWorkflowEmail } from "@/lib/email"
 
@@ -42,7 +42,7 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
   }
 
   const actions = normalizeWorkflowActions(workflow.actions)
-  const executableActions: WorkflowAction[] = actions.length ? actions : [{ type: "create_task", label: "Create review task" }]
+  const executableActions: WorkflowAction[] = mergeWorkflowActions(actions, parseWorkflowPrompt(workflow.prompt).actions)
   const shouldSendEmail = executableActions.some((action) => action.type === "send_email")
   const emailRecipient = shouldSendEmail
     ? await db.membership.findFirst({
@@ -124,6 +124,16 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
         message: `Sent workflow email for "${workflow.name}" to ${recipientEmail}`,
         metadata: { workflowId: workflow.id, runId: run.id },
         workspaceId,
+      },
+    })
+
+    await db.workflowRun.update({
+      where: { id: run.id },
+      data: {
+        output: {
+          actions: executableActions,
+          message: "Internal actions executed; workflow email sent.",
+        },
       },
     })
 

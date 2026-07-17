@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   classifyTicket,
+  mergeWorkflowActions,
   normalizeWorkflowActions,
   parseWorkflowPrompt,
   scoreLead,
@@ -54,6 +55,18 @@ describe("OpsPilot rules", () => {
     ])
   })
 
+  it("infers email and task actions from looser workflow language", () => {
+    const workflow = parseWorkflowPrompt(
+      "Do write a new lead then send it to existing customer then update it to CRM and add the taks"
+    )
+
+    expect(workflow.actions.map((action) => action.type)).toEqual([
+      "create_crm_record",
+      "send_email",
+      "create_task",
+    ])
+  })
+
   it("normalizes stored workflow action JSON before execution", () => {
     expect(
       normalizeWorkflowActions([
@@ -62,5 +75,18 @@ describe("OpsPilot rules", () => {
         null,
       ])
     ).toEqual([{ type: "create_task", label: "Create task" }])
+  })
+
+  it("merges newly inferred prompt actions into older stored workflows", () => {
+    expect(
+      mergeWorkflowActions(
+        [{ type: "create_crm_record", label: "Create CRM record" }],
+        [
+          { type: "create_crm_record", label: "Create CRM record" },
+          { type: "send_email", label: "Send email" },
+          { type: "create_task", label: "Create follow-up task" },
+        ]
+      ).map((action) => action.type)
+    ).toEqual(["create_crm_record", "send_email", "create_task"])
   })
 })

@@ -105,6 +105,10 @@ const workflowActionTypes = new Set<WorkflowAction["type"]>([
   "notify_team",
 ])
 
+function hasAny(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term))
+}
+
 export function normalizeWorkflowActions(actions: unknown): WorkflowAction[] {
   if (!Array.isArray(actions)) {
     return []
@@ -120,12 +124,15 @@ export function normalizeWorkflowActions(actions: unknown): WorkflowAction[] {
   })
 }
 
-export function parseWorkflowPrompt(prompt: string) {
+export function parseWorkflowPrompt(prompt: string): {
+  trigger: "NEW_SUPPORT_TICKET" | "NEW_LEAD" | "MANUAL"
+  actions: WorkflowAction[]
+} {
   const lower = prompt.toLowerCase()
   const trigger: "NEW_SUPPORT_TICKET" | "NEW_LEAD" | "MANUAL" = lower.includes("support") || lower.includes("ticket") ? "NEW_SUPPORT_TICKET" : lower.includes("new lead") ? "NEW_LEAD" : "MANUAL"
   const actions: WorkflowAction[] = []
 
-  if (lower.includes("crm") || lower.includes("record")) {
+  if (hasAny(lower, ["crm", "record", "lead"])) {
     actions.push({ type: "create_crm_record", label: "Create CRM record" })
   }
 
@@ -133,11 +140,11 @@ export function parseWorkflowPrompt(prompt: string) {
     actions.push({ type: "assign_owner", label: "Assign owner" })
   }
 
-  if (lower.includes("email")) {
+  if (hasAny(lower, ["email", "mail", "gmail"]) || (lower.includes("send") && lower.includes("customer"))) {
     actions.push({ type: "send_email", label: "Send email" })
   }
 
-  if (lower.includes("task") || lower.includes("follow")) {
+  if (hasAny(lower, ["task", "taks", "follow", "todo", "to-do"])) {
     actions.push({ type: "create_task", label: "Create follow-up task" })
   }
 
@@ -149,4 +156,21 @@ export function parseWorkflowPrompt(prompt: string) {
     trigger,
     actions: actions.length ? actions : [{ type: "create_task", label: "Create review task" }],
   }
+}
+
+export function mergeWorkflowActions(storedActions: WorkflowAction[], promptActions: WorkflowAction[]): WorkflowAction[] {
+  const meaningfulPromptActions = storedActions.length
+    ? promptActions.filter((action) => !(action.type === "create_task" && action.label === "Create review task"))
+    : promptActions
+  const merged = [...storedActions]
+  const seen = new Set(merged.map((action) => action.type))
+
+  for (const action of meaningfulPromptActions) {
+    if (!seen.has(action.type)) {
+      merged.push(action)
+      seen.add(action.type)
+    }
+  }
+
+  return merged.length ? merged : [{ type: "create_task", label: "Create review task" }]
 }
