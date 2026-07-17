@@ -13,7 +13,8 @@
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:validate": "prisma validate"
+    "db:validate": "prisma validate",
+    "ai:check": "tsx scripts/check-ai-provider.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

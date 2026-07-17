@@ -3,18 +3,22 @@ import { db } from "@/lib/db"
 import { mergeWorkflowActions, normalizeWorkflowActions, parseWorkflowPrompt, type WorkflowAction } from "@/lib/ops/rules"
 import { AppError } from "@/lib/errors"
 import { sendWorkflowEmail } from "@/lib/email"
+import { generateWorkflowActions } from "@/lib/ai"
 
 export { parseWorkflowPrompt, type WorkflowAction }
 
 export async function createWorkflow(workspaceId: string, prompt: string, name?: string) {
   const parsed = parseWorkflowPrompt(prompt)
+  const aiActions = await generateWorkflowActions(prompt).catch(() => null)
+  const actions = aiActions?.length ? mergeWorkflowActions(parsed.actions, aiActions) : parsed.actions
+
   return db.$transaction(async (tx) => {
     const workflow = await tx.workflow.create({
       data: {
         name: name ?? "New OpsPilot workflow",
         prompt,
         trigger: parsed.trigger,
-        actions: parsed.actions,
+        actions,
         workspaceId,
       },
     })

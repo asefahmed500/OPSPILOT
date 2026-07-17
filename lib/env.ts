@@ -29,8 +29,12 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+  AI_API_BASE_URL: z.string().url().default("https://api.hcnsec.cn/v1"),
+  AI_API_KEY: z.string().optional(),
+  HCNSEC_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default("DeepSeek-V4-Flash"),
   OPENAI_API_KEY: z.string().optional(),
-  OPENAI_MODEL: z.string().default("gpt-4.1-mini"),
+  OPENAI_MODEL: z.string().optional(),
 })
 
 export const env = envSchema.parse(process.env)
