@@ -1,4 +1,5 @@
 import { Geist, Geist_Mono } from "next/font/google"
+import type { Metadata } from "next"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -10,6 +11,11 @@ const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
+
+export const metadata: Metadata = {
+  title: "OpsPilot AI",
+  description: "AI operations teammate for CRM, support, tasks, workflows, and reports.",
+}
 
 export default function RootLayout({
   children,

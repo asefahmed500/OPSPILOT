@@ -1,0 +1,342 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum LeadStatus {
+  NEW
+  QUALIFIED
+  CONTACTED
+  NURTURING
+  WON
+  LOST
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  ESCALATED
+  RESOLVED
+}
+
+enum TicketCategory {
+  BILLING
+  TECHNICAL
+  FEATURE_REQUEST
+  GENERAL
+}
+
+enum TicketChannel {
+  WEBSITE_CHAT
+  EMAIL
+  WHATSAPP
+  SLACK
+  DISCORD
+}
+
+enum WorkflowTrigger {
+  NEW_LEAD
+  NEW_SUPPORT_TICKET
+  MANUAL
+}
+
+enum WorkflowRunStatus {
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  passwordHash  String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  memberships   Membership[]
+  assignedLeads Lead[]         @relation("LeadOwner")
+  assignedTasks Task[]         @relation("TaskOwner")
+  tickets       Ticket[]       @relation("TicketAssignee")
+  conversations Conversation[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Workspace {
+  id           String               @id @default(cuid())
+  name         String
+  slug         String               @unique
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  memberships  Membership[]
+  companies    Company[]
+  contacts     Contact[]
+  leads        Lead[]
+  interactions Interaction[]
+  tasks        Task[]
+  tickets      Ticket[]
+  conversations Conversation[]
+  workflows    Workflow[]
+  workflowRuns WorkflowRun[]
+  integrations IntegrationAccount[]
+  activityLogs ActivityLog[]
+  reports      Report[]
+}
+
+model Membership {
+  id          String         @id @default(cuid())
+  role        MembershipRole @default(MEMBER)
+  userId      String
+  workspaceId String
+  createdAt   DateTime       @default(now())
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+model Company {
+  id          String    @id @default(cuid())
+  name        String
+  domain      String?
+  workspaceId String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts    Contact[]
+  leads       Lead[]
+
+  @@index([workspaceId])
+}
+
+model Contact {
+  id          String        @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  title       String?
+  summary     String?
+  companyId   String?
+  workspaceId String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  company     Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads       Lead[]
+  interactions Interaction[]
+  tickets     Ticket[]
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId])
+}
+
+model Lead {
+  id          String      @id @default(cuid())
+  name        String
+  email       String
+  source      String      @default("Website")
+  status      LeadStatus  @default(NEW)
+  score       Int         @default(50)
+  summary     String?
+  nextAction  String?
+  ownerId     String?
+  contactId   String?
+  companyId   String?
+  workspaceId String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  owner       User?       @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  contact     Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company     Company?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  interactions Interaction[]
+
+  @@index([workspaceId, status])
+}
+
+model Interaction {
+  id          String    @id @default(cuid())
+  type        String
+  body        String
+  leadId      String?
+  contactId   String?
+  workspaceId String
+  createdAt   DateTime  @default(now())
+  lead        Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueAt       DateTime?
+  ownerId     String?
+  leadId      String?
+  ticketId    String?
+  workspaceId String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  owner       User?        @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  ticket      Ticket?      @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+}
+
+model Ticket {
+  id          String         @id @default(cuid())
+  subject     String
+  customerEmail String
+  status      TicketStatus   @default(OPEN)
+  category    TicketCategory @default(GENERAL)
+  channel     TicketChannel  @default(WEBSITE_CHAT)
+  priority    TaskPriority   @default(MEDIUM)
+  aiDraft     String?
+  escalated   Boolean        @default(false)
+  assigneeId  String?
+  contactId   String?
+  workspaceId String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  assignee    User?          @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  contact     Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages    TicketMessage[]
+  tasks       Task[]
+
+  @@index([workspaceId, status])
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  body      String
+  fromAgent Boolean  @default(false)
+  ticketId  String
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id          String      @id @default(cuid())
+  title       String      @default("OpsPilot chat")
+  userId      String
+  workspaceId String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages    AiMessage[]
+}
+
+model AiMessage {
+  id             String       @id @default(cuid())
+  role           String
+  content        String
+  action         String?
+  conversationId String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model Workflow {
+  id          String          @id @default(cuid())
+  name        String
+  prompt      String
+  trigger     WorkflowTrigger @default(MANUAL)
+  actions     Json
+  enabled     Boolean         @default(true)
+  workspaceId String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  runs        WorkflowRun[]
+}
+
+model WorkflowRun {
+  id          String            @id @default(cuid())
+  status      WorkflowRunStatus @default(SUCCESS)
+  output      Json?
+  workflowId  String
+  workspaceId String
+  createdAt   DateTime          @default(now())
+  workflow    Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model IntegrationAccount {
+  id          String    @id @default(cuid())
+  provider    String
+  status      String    @default("mock")
+  config      Json?
+  workspaceId String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+}
+
+model ActivityLog {
+  id          String    @id @default(cuid())
+  type        String
+  message     String
+  metadata    Json?
+  workspaceId String
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model Report {
+  id          String    @id @default(cuid())
+  title       String
+  period      String
+  body        String
+  metrics     Json?
+  workspaceId String
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}

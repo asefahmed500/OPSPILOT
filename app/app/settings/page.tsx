@@ -1,0 +1,38 @@
+import { ActionForm } from "@/components/app/action-form"
+import { requireUser } from "@/lib/auth"
+import { requireWorkspace } from "@/lib/workspace"
+import { db } from "@/lib/db"
+
+export default async function SettingsPage() {
+  const user = await requireUser()
+  const workspace = await requireWorkspace(user.id)
+  const integrations = await db.integrationAccount.findMany({ where: { workspaceId: workspace.id }, orderBy: { provider: "asc" } })
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+      <div>
+        <h1 className="text-3xl font-semibold">Settings</h1>
+        <p className="mt-2 text-slate-600">Workspace, profile, SMTP, and mock integration status.</p>
+        <div className="op-panel mt-6 p-5">
+          <p className="font-medium">{workspace.name}</p>
+          <p className="mt-1 text-sm text-slate-500">{user.email}</p>
+        </div>
+      </div>
+      <div className="space-y-6">
+        <ActionForm kind="smtp" endpoint="/api/settings/smtp-test" submitLabel="Send SMTP test" successLabel="SMTP test sent" />
+        <div className="op-panel p-5">
+          <h2 className="font-semibold tracking-tight">Adapters</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {integrations.map((integration) => (
+              <div key={integration.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="font-medium">{integration.provider}</p>
+                <p className="mt-1 text-sm text-slate-500">{integration.status}</p>
+              </div>
+            ))}
+            {!integrations.length ? <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">Adapters are created during registration.</p> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
