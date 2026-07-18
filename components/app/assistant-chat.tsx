@@ -9,29 +9,44 @@ import { MessageSquare, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { assistantSchema } from "@/lib/validation"
 
-const commandExamples = [
-  "Write a friendly founder email for SaaS owners about OpsPilot automating workflows, send it to customer@example.com, create CRM lead, task, support ticket, and weekly report",
-  "/workflow when a client replies, update CRM, create a support ticket, create a follow-up task, and generate a weekly report",
-  "/email write a polished launch update as an account manager, invite them to book a demo, send to customer@example.com and create CRM plus task",
+const suggestionSteps = [
+  {
+    label: "Choose a goal",
+    hint: "Start with what you want OpsPilot to do.",
+    options: [
+      {
+        label: "Send email",
+        prompt: "/email as founder write a friendly email for SaaS owners about OpsPilot automation, send to customer@example.com, ask them to book a demo",
+      },
+      {
+        label: "Run agent",
+        prompt: "/agent as account manager write a professional email about reducing manual work, send to customer@example.com, create CRM lead, task, ticket, and weekly report",
+      },
+      {
+        label: "Create workflow",
+        prompt: "/workflow when a customer replies about OpsPilot, create support ticket, update CRM, create follow-up task, and generate weekly report",
+      },
+    ],
+  },
+  {
+    label: "Pick a voice",
+    hint: "Use this when the email should sound like a specific role.",
+    options: [
+      { label: "Founder", prompt: "/email as founder write a friendly email for SaaS owners about OpsPilot, send to customer@example.com, ask them to book a demo" },
+      { label: "Sales rep", prompt: "/email as sales rep write a persuasive email for operations teams about saving time, send to customer@example.com, create CRM lead and task" },
+      { label: "Support agent", prompt: "/email as support agent write a warm reply about helping with workflow automation, send to customer@example.com, create support ticket and task" },
+    ],
+  },
+  {
+    label: "Update systems",
+    hint: "Ask the agent to update app records after the email.",
+    options: [
+      { label: "CRM + task", prompt: "/agent send a professional email about OpsPilot to customer@example.com, create CRM lead and follow-up task" },
+      { label: "Support + task", prompt: "/agent write a helpful reply to customer@example.com, create support ticket and follow-up task" },
+      { label: "Everything", prompt: "/agent write a friendly email about OpsPilot to customer@example.com, create CRM lead, task, support ticket, and weekly report" },
+    ],
+  },
 ]
-
-const slashCommands = [
-  ["/email", "Generate and send a customer email"],
-  ["/workflow", "Save reusable automation"],
-  ["/agent", "Run many tools from one request"],
-]
-
-const promptRecipes = [
-  "/email as founder write a friendly email for SaaS owners about [topic], send to customer@example.com, ask them to book a demo, create CRM lead and follow-up task",
-  "/agent as account manager write a professional renewal email for [company] about [offer], send to buyer@example.com, create CRM, task, ticket, and weekly report",
-  "/workflow when a customer replies about [topic], create support ticket, update CRM, create follow-up task, and generate weekly report",
-]
-
-const promptParts = {
-  personas: ["founder", "account manager", "sales rep", "support agent", "consultant", "product manager"],
-  tones: ["friendly", "professional", "direct", "persuasive", "warm", "short"],
-  actions: ["send email", "create CRM lead", "create task", "create support ticket", "create workflow", "generate report"],
-}
 
 type Message = {
   role: string
@@ -62,6 +77,7 @@ export function AssistantChat({
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [suggestionStep, setSuggestionStep] = useState(0)
   const {
     register,
     handleSubmit,
@@ -157,6 +173,7 @@ export function AssistantChat({
   }
 
   const activeTitle = conversations.find((conversation) => conversation.id === conversationId)?.title ?? "New chat"
+  const activeSuggestions = suggestionSteps[suggestionStep]
 
   return (
     <div className="op-panel overflow-hidden">
@@ -232,74 +249,55 @@ export function AssistantChat({
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="border-t border-slate-200 p-4">
-            <div className="mb-4 rounded-lg border border-slate-200 bg-white/80 p-3 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-3 rounded-lg border border-slate-200 bg-white/80 p-3 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-950">Command format</p>
-                  <p className="mt-1 text-xs text-slate-500">Pick a slash command, add voice, topic, recipient, CTA, then choose the tools to update.</p>
+                  <p className="text-sm font-semibold text-slate-950">{activeSuggestions.label}</p>
+                  <p className="mt-1 text-xs text-slate-500">{activeSuggestions.hint}</p>
                 </div>
-                <code className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">/[command] as [persona] write [tone] email for [audience] about [topic]</code>
+                <div className="flex items-center gap-1">
+                  {suggestionSteps.map((step, index) => (
+                    <button
+                      key={step.label}
+                      type="button"
+                      onClick={() => setSuggestionStep(index)}
+                      className={`size-2 rounded-full transition ${index === suggestionStep ? "bg-slate-950" : "bg-slate-300 hover:bg-slate-400"}`}
+                      aria-label={`Show ${step.label}`}
+                    />
+                  ))}
+                </div>
               </div>
 
-              <div className="mt-3 grid gap-3 lg:grid-cols-3">
-                {slashCommands.map(([command, description]) => (
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {activeSuggestions.options.map((option) => (
                   <button
-                    key={command}
+                    key={option.label}
                     type="button"
-                    onClick={() => fillPrompt(`${command} as founder write a friendly email for SaaS owners about OpsPilot, send to customer@example.com, ask them to book a demo, create CRM lead and task`)}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:border-slate-300 hover:bg-white"
+                    onClick={() => fillPrompt(option.prompt)}
+                    className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white hover:text-slate-950"
                   >
-                    <span className="block text-sm font-semibold text-slate-950">{command}</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>
+                    {option.label}
                   </button>
                 ))}
               </div>
 
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
-                {Object.entries(promptParts).map(([label, values]) => (
-                  <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {values.map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => fillPrompt(`/email as ${label === "personas" ? value : "founder"} write a ${label === "tones" ? value : "professional"} email for SaaS owners about OpsPilot automation, send to customer@example.com, ask them to book a demo, create CRM lead and task`)}
-                          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 transition hover:border-slate-300 hover:text-slate-950"
-                        >
-                          {value}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-3 space-y-2">
-                {promptRecipes.map((recipe) => (
-                  <button
-                    key={recipe}
-                    type="button"
-                    onClick={() => fillPrompt(recipe)}
-                    className="block w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs leading-5 text-slate-600 transition hover:border-slate-300 hover:bg-white"
-                  >
-                    {recipe}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-3 flex flex-wrap gap-2">
-              {commandExamples.map((example) => (
+              <div className="mt-3 flex items-center justify-between">
                 <button
-                  key={example}
                   type="button"
-                  onClick={() => fillPrompt(example)}
-                  className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                  onClick={() => setSuggestionStep((value) => Math.max(0, value - 1))}
+                  disabled={suggestionStep === 0}
+                  className="text-xs font-medium text-slate-500 transition hover:text-slate-950 disabled:opacity-40"
                 >
-                  {example}
+                  Back
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setSuggestionStep((value) => (value + 1) % suggestionSteps.length)}
+                  className="text-xs font-medium text-slate-700 transition hover:text-slate-950"
+                >
+                  More suggestions
+                </button>
+              </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input {...register("message")} className="op-field min-w-0 flex-1" placeholder="Ask OpsPilot..." />
