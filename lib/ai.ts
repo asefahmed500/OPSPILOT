@@ -38,8 +38,15 @@ const workflowPlanSchema = z.object({
   actions: z
     .array(
       z.object({
-        type: z.enum(["create_crm_record", "assign_owner", "send_email", "create_task", "notify_team"]),
+        type: z.enum(["create_crm_record", "assign_owner", "send_email", "create_task", "create_ticket", "notify_team"]),
         label: z.string().min(1).max(120),
+        email: z.string().email().optional(),
+        name: z.string().optional(),
+        company: z.string().optional(),
+        subject: z.string().optional(),
+        body: z.string().optional(),
+        title: z.string().optional(),
+        description: z.string().optional(),
       })
     )
     .min(1)
@@ -139,8 +146,10 @@ export async function generateWorkflowActions(prompt: string): Promise<WorkflowA
     [
       "You convert workflow requests into safe OpsPilot action JSON.",
       "Return only JSON. Do not include markdown.",
-      "Allowed action types: create_crm_record, assign_owner, send_email, create_task, notify_team.",
-      "Schema: {\"actions\":[{\"type\":\"send_email\",\"label\":\"Send email\"}]}",
+      "Allowed action types: create_crm_record, assign_owner, send_email, create_task, create_ticket, notify_team.",
+      "Extract customer emails, names, company, task titles, email subject/body when present.",
+      "Email actions must include the customer recipient email when the prompt contains one.",
+      "Schema: {\"actions\":[{\"type\":\"send_email\",\"label\":\"Send email\",\"email\":\"customer@example.com\",\"subject\":\"...\",\"body\":\"...\"}]}",
     ].join(" "),
     prompt
   )

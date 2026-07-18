@@ -57,7 +57,7 @@ describe("OpsPilot rules", () => {
 
   it("infers email and task actions from looser workflow language", () => {
     const workflow = parseWorkflowPrompt(
-      "Do write a new lead then send it to existing customer then update it to CRM and add the taks"
+      "Do write a new lead for asefahmed500@gmail.com then send it to existing customer then update it to CRM and add the taks"
     )
 
     expect(workflow.actions.map((action) => action.type)).toEqual([
@@ -65,6 +65,20 @@ describe("OpsPilot rules", () => {
       "send_email",
       "create_task",
     ])
+    expect(workflow.actions.find((action) => action.type === "send_email")).toMatchObject({
+      email: "asefahmed500@gmail.com",
+    })
+  })
+
+  it("extracts a named customer for workflow CRM actions", () => {
+    const workflow = parseWorkflowPrompt(
+      "Create a CRM lead for Asef Ahmed with email asefahmed500@gmail.com then send email and create task"
+    )
+
+    expect(workflow.actions.find((action) => action.type === "create_crm_record")).toMatchObject({
+      email: "asefahmed500@gmail.com",
+      name: "Asef Ahmed",
+    })
   })
 
   it("normalizes stored workflow action JSON before execution", () => {
@@ -82,11 +96,15 @@ describe("OpsPilot rules", () => {
       mergeWorkflowActions(
         [{ type: "create_crm_record", label: "Create CRM record" }],
         [
-          { type: "create_crm_record", label: "Create CRM record" },
-          { type: "send_email", label: "Send email" },
+          { type: "create_crm_record", label: "Create CRM record", email: "asefahmed500@gmail.com" },
+          { type: "send_email", label: "Send email", email: "asefahmed500@gmail.com" },
           { type: "create_task", label: "Create follow-up task" },
         ]
-      ).map((action) => action.type)
-    ).toEqual(["create_crm_record", "send_email", "create_task"])
+      )
+    ).toEqual([
+      { type: "create_crm_record", label: "Create CRM record", email: "asefahmed500@gmail.com" },
+      { type: "send_email", label: "Send email", email: "asefahmed500@gmail.com" },
+      { type: "create_task", label: "Create follow-up task" },
+    ])
   })
 })

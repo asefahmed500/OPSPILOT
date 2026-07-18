@@ -53,28 +53,33 @@ export async function sendWorkflowEmail({
   workflowName,
   prompt,
   actions,
+  subject,
+  body,
 }: {
   to: string
   workflowName: string
   prompt: string
   actions: string[]
+  subject?: string
+  body?: string
 }) {
   const transporter = createSmtpTransporter()
+  const emailSubject = subject ?? `OpsPilot follow-up: ${workflowName}`
 
   return transporter.sendMail({
     from: env.SMTP_FROM,
     to,
-    subject: `OpsPilot workflow ran: ${workflowName}`,
+    subject: emailSubject,
     text: [
+      body ?? "Thanks for your interest. I am following up with the next steps and will keep your CRM record updated.",
+      "",
       `Workflow: ${workflowName}`,
-      "",
-      "OpsPilot ran this workflow and detected an email action.",
-      "",
-      "Prompt:",
-      prompt,
       "",
       "Actions:",
       ...actions.map((action) => `- ${action}`),
+      "",
+      "Original request:",
+      prompt,
     ].join("\n"),
   })
 }

@@ -4,6 +4,9 @@ import { mergeWorkflowActions, normalizeWorkflowActions, parseWorkflowPrompt, ty
 import { AppError } from "@/lib/errors"
 import { sendWorkflowEmail } from "@/lib/email"
 import { generateWorkflowActions } from "@/lib/ai"
+import { createLead } from "@/lib/ops/lead"
+import { createTask } from "@/lib/ops/tasks"
+import { createTicket } from "@/lib/ops/support"
 
 export { parseWorkflowPrompt, type WorkflowAction }
 
@@ -47,39 +50,42 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
 
   const actions = normalizeWorkflowActions(workflow.actions)
   const executableActions: WorkflowAction[] = mergeWorkflowActions(actions, parseWorkflowPrompt(workflow.prompt).actions)
-  const shouldSendEmail = executableActions.some((action) => action.type === "send_email")
-  const emailRecipient = shouldSendEmail
-    ? await db.membership.findFirst({
-        where: { workspaceId },
-        include: { user: true },
-        orderBy: { createdAt: "asc" },
+  const emailAction = executableActions.find((action) => action.type === "send_email")
+  const shouldSendEmail = Boolean(emailAction)
+
+  if (shouldSendEmail && !emailAction?.email) {
+    throw new AppError("Workflow email action needs a customer email in the workflow prompt", 400, "WORKFLOW_EMAIL_RECIPIENT_REQUIRED")
+  }
+
+  const createdLead = executableActions.some((action) => action.type === "create_crm_record")
+    ? await createLead(workspaceId, {
+        name: executableActions.find((action) => action.name)?.name ?? emailAction?.email ?? "Workflow lead",
+        email: executableActions.find((action) => action.email)?.email ?? `workflow-${workflow.id}@example.com`,
+        company: executableActions.find((action) => action.company)?.company,
+        source: "Workflow",
+        notes: workflow.prompt,
       })
     : null
 
-  if (shouldSendEmail && !emailRecipient?.user.email) {
-    throw new AppError("Workflow email action needs a workspace user email", 400, "WORKFLOW_EMAIL_RECIPIENT_REQUIRED")
-  }
+  const createdTask = executableActions.some((action) => action.type === "create_task")
+    ? await createTask(workspaceId, {
+        title: executableActions.find((action) => action.type === "create_task")?.title ?? `Follow up for workflow: ${workflow.name}`,
+        description: executableActions.find((action) => action.type === "create_task")?.description ?? workflow.prompt,
+        priority: "MEDIUM",
+        leadId: createdLead?.id,
+      })
+    : null
+
+  const ticketAction = executableActions.find((action) => action.type === "create_ticket")
+  const createdTicket = ticketAction
+    ? await createTicket(workspaceId, {
+        subject: ticketAction.subject ?? `Workflow ticket: ${workflow.name}`,
+        customerEmail: ticketAction.email ?? emailAction?.email ?? `workflow-${workflow.id}@example.com`,
+        body: ticketAction.body ?? ticketAction.description ?? workflow.prompt,
+      })
+    : null
 
   const run = await db.$transaction(async (tx) => {
-    if (executableActions.some((action) => action.type === "create_task")) {
-      const task = await tx.task.create({
-        data: {
-          title: `Run workflow: ${workflow.name}`,
-          description: workflow.prompt,
-          workspaceId,
-        },
-      })
-
-      await tx.activityLog.create({
-        data: {
-          type: "task.created",
-          message: `Created task "${task.title}"`,
-          metadata: { taskId: task.id },
-          workspaceId,
-        },
-      })
-    }
-
     const workflowRun = await tx.workflowRun.create({
       data: {
         workflowId: workflow.id,
@@ -87,7 +93,10 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
         status: "SUCCESS",
         output: {
           actions: executableActions,
-          message: shouldSendEmail ? "Internal actions executed; email action queued." : "Internal actions executed successfully.",
+          leadId: createdLead?.id,
+          taskId: createdTask?.id,
+          ticketId: createdTicket?.id,
+          message: shouldSendEmail ? "Internal actions executed; customer email queued." : "Internal actions executed successfully.",
         },
       },
     })
@@ -108,10 +117,10 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
     return run
   }
 
-  const recipientEmail = emailRecipient?.user.email
+  const recipientEmail = emailAction?.email
 
   if (!recipientEmail) {
-    throw new AppError("Workflow email action needs a workspace user email", 400, "WORKFLOW_EMAIL_RECIPIENT_REQUIRED")
+    throw new AppError("Workflow email action needs a customer email in the workflow prompt", 400, "WORKFLOW_EMAIL_RECIPIENT_REQUIRED")
   }
 
   try {
@@ -120,28 +129,33 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
       workflowName: workflow.name,
       prompt: workflow.prompt,
       actions: executableActions.map((action) => action.label),
+      subject: emailAction.subject,
+      body: emailAction.body,
     })
 
     await db.activityLog.create({
       data: {
         type: "workflow.email.sent",
-        message: `Sent workflow email for "${workflow.name}" to ${recipientEmail}`,
+        message: `Sent customer workflow email for "${workflow.name}" to ${recipientEmail}`,
         metadata: { workflowId: workflow.id, runId: run.id },
         workspaceId,
       },
     })
 
-    await db.workflowRun.update({
+    const updatedRun = await db.workflowRun.update({
       where: { id: run.id },
       data: {
         output: {
           actions: executableActions,
+          leadId: createdLead?.id,
+          taskId: createdTask?.id,
+          ticketId: createdTicket?.id,
           message: "Internal actions executed; workflow email sent.",
         },
       },
     })
 
-    return run
+    return updatedRun
   } catch (error) {
     await db.workflowRun.update({
       where: { id: run.id },

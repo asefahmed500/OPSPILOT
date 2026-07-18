@@ -93,8 +93,15 @@ export function taskFromPrompt(prompt: string) {
 }
 
 export type WorkflowAction = {
-  type: "create_crm_record" | "assign_owner" | "send_email" | "create_task" | "notify_team"
+  type: "create_crm_record" | "assign_owner" | "send_email" | "create_task" | "create_ticket" | "notify_team"
   label: string
+  email?: string
+  name?: string
+  company?: string
+  subject?: string
+  body?: string
+  title?: string
+  description?: string
 }
 
 const workflowActionTypes = new Set<WorkflowAction["type"]>([
@@ -102,11 +109,34 @@ const workflowActionTypes = new Set<WorkflowAction["type"]>([
   "assign_owner",
   "send_email",
   "create_task",
+  "create_ticket",
   "notify_team",
 ])
 
 function hasAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term))
+}
+
+function extractEmail(text: string) {
+  return text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase()
+}
+
+function nameFromEmail(email: string | undefined) {
+  if (!email) {
+    return undefined
+  }
+
+  return email
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function extractName(text: string) {
+  const match = text.match(/\b(?:named|name is|customer name is|lead named|lead for|customer for)\s+([A-Z][A-Z\s.'-]{1,80}?)(?=\s+(?:with|at|email|and|then|,|$))/i)
+  const name = match?.[1]?.trim()
+
+  return name || undefined
 }
 
 export function normalizeWorkflowActions(actions: unknown): WorkflowAction[] {
@@ -119,8 +149,23 @@ export function normalizeWorkflowActions(actions: unknown): WorkflowAction[] {
       return false
     }
 
-    const candidate = action as { type?: unknown; label?: unknown }
-    return typeof candidate.type === "string" && workflowActionTypes.has(candidate.type as WorkflowAction["type"]) && typeof candidate.label === "string"
+    const candidate = action as {
+      type?: unknown
+      label?: unknown
+      email?: unknown
+      name?: unknown
+      company?: unknown
+      subject?: unknown
+      body?: unknown
+      title?: unknown
+      description?: unknown
+    }
+
+    if (typeof candidate.type !== "string" || !workflowActionTypes.has(candidate.type as WorkflowAction["type"]) || typeof candidate.label !== "string") {
+      return false
+    }
+
+    return [candidate.email, candidate.name, candidate.company, candidate.subject, candidate.body, candidate.title, candidate.description].every((value) => value === undefined || typeof value === "string")
   })
 }
 
@@ -129,11 +174,19 @@ export function parseWorkflowPrompt(prompt: string): {
   actions: WorkflowAction[]
 } {
   const lower = prompt.toLowerCase()
+  const email = extractEmail(prompt)
+  const name = extractName(prompt) ?? nameFromEmail(email)
   const trigger: "NEW_SUPPORT_TICKET" | "NEW_LEAD" | "MANUAL" = lower.includes("support") || lower.includes("ticket") ? "NEW_SUPPORT_TICKET" : lower.includes("new lead") ? "NEW_LEAD" : "MANUAL"
   const actions: WorkflowAction[] = []
 
   if (hasAny(lower, ["crm", "record", "lead"])) {
-    actions.push({ type: "create_crm_record", label: "Create CRM record" })
+    actions.push({
+      type: "create_crm_record",
+      label: "Create CRM record",
+      email,
+      name: name ?? "Workflow lead",
+      description: prompt,
+    })
   }
 
   if (lower.includes("assign")) {
@@ -141,11 +194,33 @@ export function parseWorkflowPrompt(prompt: string): {
   }
 
   if (hasAny(lower, ["email", "mail", "gmail"]) || (lower.includes("send") && lower.includes("customer"))) {
-    actions.push({ type: "send_email", label: "Send email" })
+    actions.push({
+      type: "send_email",
+      label: "Send email",
+      email,
+      subject: "Following up from OpsPilot",
+      body: "Thanks for your interest. I am following up with the next steps and will keep your CRM record updated.",
+    })
   }
 
   if (hasAny(lower, ["task", "taks", "follow", "todo", "to-do"])) {
-    actions.push({ type: "create_task", label: "Create follow-up task" })
+    actions.push({
+      type: "create_task",
+      label: "Create follow-up task",
+      title: email ? `Follow up with ${email}` : "Follow up with customer",
+      description: prompt,
+      email,
+    })
+  }
+
+  if (hasAny(lower, ["ticket", "support issue", "support request"])) {
+    actions.push({
+      type: "create_ticket",
+      label: "Create support ticket",
+      email,
+      subject: email ? `Support follow-up for ${email}` : "Workflow support ticket",
+      body: prompt,
+    })
   }
 
   if (lower.includes("notify") || lower.includes("slack") || lower.includes("team")) {
@@ -163,12 +238,17 @@ export function mergeWorkflowActions(storedActions: WorkflowAction[], promptActi
     ? promptActions.filter((action) => !(action.type === "create_task" && action.label === "Create review task"))
     : promptActions
   const merged = [...storedActions]
-  const seen = new Set(merged.map((action) => action.type))
 
   for (const action of meaningfulPromptActions) {
-    if (!seen.has(action.type)) {
+    const existingIndex = merged.findIndex((storedAction) => storedAction.type === action.type)
+
+    if (existingIndex >= 0) {
+      merged[existingIndex] = {
+        ...merged[existingIndex],
+        ...Object.fromEntries(Object.entries(action).filter(([, value]) => value !== undefined && value !== "")),
+      }
+    } else {
       merged.push(action)
-      seen.add(action.type)
     }
   }
 
