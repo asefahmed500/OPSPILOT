@@ -75,6 +75,9 @@ const fields: Record<FormKind, Field[]> = {
   ],
   workflow: [
     { name: "name", label: "Workflow name", placeholder: "Workflow name" },
+    { name: "customerEmail", label: "Customer email", type: "email", placeholder: "customer@example.com" },
+    { name: "customerName", label: "Customer name", placeholder: "Customer name" },
+    { name: "company", label: "Company", placeholder: "Company" },
     {
       name: "prompt",
       label: "Workflow prompt",

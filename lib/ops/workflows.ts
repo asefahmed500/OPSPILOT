@@ -10,10 +10,41 @@ import { createTicket } from "@/lib/ops/support"
 
 export { parseWorkflowPrompt, type WorkflowAction }
 
-export async function createWorkflow(workspaceId: string, prompt: string, name?: string) {
+type WorkflowCustomerFields = {
+  customerEmail?: string
+  customerName?: string
+  company?: string
+}
+
+function withWorkflowCustomerFields(actions: WorkflowAction[], fields?: WorkflowCustomerFields) {
+  const customerEmail = fields?.customerEmail?.toLowerCase().trim()
+  const customerName = fields?.customerName?.trim()
+  const company = fields?.company?.trim()
+
+  if (!customerEmail && !customerName && !company) {
+    return actions
+  }
+
+  return actions.map((action) => {
+    if (!["create_crm_record", "send_email", "create_task", "create_ticket"].includes(action.type)) {
+      return action
+    }
+
+    return {
+      ...action,
+      email: action.email ?? customerEmail,
+      name: action.name ?? customerName,
+      company: action.company ?? company,
+      title: action.title ?? (action.type === "create_task" && customerEmail ? `Follow up with ${customerEmail}` : action.title),
+      subject: action.subject ?? (action.type === "send_email" ? "Following up from OpsPilot" : action.subject),
+    }
+  })
+}
+
+export async function createWorkflow(workspaceId: string, prompt: string, name?: string, fields?: WorkflowCustomerFields) {
   const parsed = parseWorkflowPrompt(prompt)
   const aiActions = await generateWorkflowActions(prompt).catch(() => null)
-  const actions = aiActions?.length ? mergeWorkflowActions(parsed.actions, aiActions) : parsed.actions
+  const actions = withWorkflowCustomerFields(aiActions?.length ? mergeWorkflowActions(parsed.actions, aiActions) : parsed.actions, fields)
 
   return db.$transaction(async (tx) => {
     const workflow = await tx.workflow.create({
@@ -36,6 +67,32 @@ export async function createWorkflow(workspaceId: string, prompt: string, name?:
     })
 
     return workflow
+  })
+}
+
+export async function deleteWorkflow(workspaceId: string, workflowId: string) {
+  const workflow = await db.workflow.findFirst({
+    where: { id: workflowId, workspaceId },
+    select: { id: true, name: true },
+  })
+
+  if (!workflow) {
+    throw new AppError("Workflow not found", 404, "WORKFLOW_NOT_FOUND")
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.workflow.delete({
+      where: { id: workflow.id },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "workflow.deleted",
+        message: `Deleted workflow "${workflow.name}"`,
+        metadata: { workflowId: workflow.id },
+        workspaceId,
+      },
+    })
   })
 }
 

@@ -56,6 +56,9 @@ export const ticketReplySchema = z.object({
 
 export const workflowSchema = z.object({
   name: optionalText(120),
+  customerEmail: z.string().trim().toLowerCase().email("Enter a valid customer email").optional().or(z.literal("")),
+  customerName: optionalText(120),
+  company: optionalText(120),
   prompt: text("Describe the workflow", 2000),
 })
 

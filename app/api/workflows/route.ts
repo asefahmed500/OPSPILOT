@@ -23,7 +23,11 @@ export async function POST(request: Request) {
     requireSameOrigin(request)
     const { workspace } = await requireRequestContext()
     const input = workflowSchema.parse(await request.json())
-    const workflow = await createWorkflow(workspace.id, input.prompt, input.name)
+    const workflow = await createWorkflow(workspace.id, input.prompt, input.name, {
+      customerEmail: input.customerEmail || undefined,
+      customerName: input.customerName,
+      company: input.company,
+    })
 
     return Response.json({ workflow }, { status: 201 })
   } catch (error) {
