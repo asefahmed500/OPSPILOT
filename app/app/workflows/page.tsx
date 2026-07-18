@@ -3,8 +3,12 @@ import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
 import { RunWorkflowButton } from "@/components/app/run-workflow-button"
+import Link from "next/link"
 
-function workflowOutputValue(output: unknown, key: "message" | "leadId" | "taskId" | "ticketId") {
+function workflowOutputValue(
+  output: unknown,
+  key: "message" | "leadId" | "leadName" | "leadEmail" | "taskId" | "taskTitle" | "ticketId" | "ticketSubject"
+) {
   if (!output || typeof output !== "object" || Array.isArray(output)) {
     return null
   }
@@ -61,11 +65,25 @@ export default async function WorkflowsPage() {
               {workflow.runs[0]?.output ? (
                 <div className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600">
                   <p className="font-semibold text-slate-900">{workflowOutputValue(workflow.runs[0].output, "message") ?? "Workflow run completed."}</p>
-                  <div className="mt-2 grid gap-1 sm:grid-cols-3">
-                    {(["leadId", "taskId", "ticketId"] as const).map((key) => {
-                      const value = workflowOutputValue(workflow.runs[0]?.output, key)
-                      return value ? <p key={key}>{key}: {value}</p> : null
-                    })}
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {workflowOutputValue(workflow.runs[0].output, "leadId") ? (
+                      <Link href="/app/crm" className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-blue-900 transition hover:border-blue-200 hover:bg-blue-100">
+                        <span className="block font-semibold">CRM updated</span>
+                        <span className="block truncate">{workflowOutputValue(workflow.runs[0].output, "leadName") ?? workflowOutputValue(workflow.runs[0].output, "leadEmail")}</span>
+                      </Link>
+                    ) : null}
+                    {workflowOutputValue(workflow.runs[0].output, "taskId") ? (
+                      <Link href="/app/tasks" className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-900 transition hover:border-emerald-200 hover:bg-emerald-100">
+                        <span className="block font-semibold">Task added</span>
+                        <span className="block truncate">{workflowOutputValue(workflow.runs[0].output, "taskTitle")}</span>
+                      </Link>
+                    ) : null}
+                    {workflowOutputValue(workflow.runs[0].output, "ticketId") ? (
+                      <Link href="/app/support" className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-amber-900 transition hover:border-amber-200 hover:bg-amber-100">
+                        <span className="block font-semibold">Support updated</span>
+                        <span className="block truncate">{workflowOutputValue(workflow.runs[0].output, "ticketSubject")}</span>
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
               ) : null}

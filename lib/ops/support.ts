@@ -12,24 +12,50 @@ export async function createTicket(
     subject: string
     customerEmail: string
     body: string
+    customerName?: string
     channel?: "WEBSITE_CHAT" | "EMAIL" | "WHATSAPP" | "SLACK" | "DISCORD"
   }
 ) {
   const text = `${input.subject} ${input.body}`
   const category = classifyTicket(text)
   const escalated = shouldEscalateTicket(text)
+  const customerEmail = input.customerEmail.toLowerCase().trim()
+  const customerName =
+    input.customerName?.trim() ||
+    customerEmail
+      .split("@")[0]
+      .replace(/[._-]+/g, " ")
+      .replace(/\b\w/g, (character) => character.toUpperCase())
 
   return db.$transaction(async (tx) => {
+    const contact = await tx.contact.upsert({
+      where: {
+        workspaceId_email: {
+          workspaceId,
+          email: customerEmail,
+        },
+      },
+      update: {
+        name: customerName,
+      },
+      create: {
+        name: customerName,
+        email: customerEmail,
+        workspaceId,
+      },
+    })
+
     const ticket = await tx.ticket.create({
       data: {
         subject: input.subject,
-        customerEmail: input.customerEmail.toLowerCase().trim(),
+        customerEmail,
         category,
         channel: input.channel ?? "WEBSITE_CHAT",
         priority: escalated ? "HIGH" : "MEDIUM",
         escalated,
         status: escalated ? "ESCALATED" : "OPEN",
         aiDraft: draftTicketResponse(input.subject, input.body),
+        contactId: contact.id,
         workspaceId,
         messages: {
           create: {

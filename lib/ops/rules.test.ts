@@ -81,6 +81,23 @@ describe("OpsPilot rules", () => {
     })
   })
 
+  it("treats common ticket typos as support workflow actions", () => {
+    const workflow = parseWorkflowPrompt(
+      "Create CRM lead for Asef Ahmed with email asefahmed500@gmail.com, add task, then update the tiker"
+    )
+
+    expect(workflow.trigger).toBe("NEW_SUPPORT_TICKET")
+    expect(workflow.actions.map((action) => action.type)).toEqual([
+      "create_crm_record",
+      "send_email",
+      "create_task",
+      "create_ticket",
+    ])
+    expect(workflow.actions.find((action) => action.type === "create_ticket")).toMatchObject({
+      email: "asefahmed500@gmail.com",
+    })
+  })
+
   it("normalizes stored workflow action JSON before execution", () => {
     expect(
       normalizeWorkflowActions([

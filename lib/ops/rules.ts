@@ -176,7 +176,8 @@ export function parseWorkflowPrompt(prompt: string): {
   const lower = prompt.toLowerCase()
   const email = extractEmail(prompt)
   const name = extractName(prompt) ?? nameFromEmail(email)
-  const trigger: "NEW_SUPPORT_TICKET" | "NEW_LEAD" | "MANUAL" = lower.includes("support") || lower.includes("ticket") ? "NEW_SUPPORT_TICKET" : lower.includes("new lead") ? "NEW_LEAD" : "MANUAL"
+  const mentionsTicket = hasAny(lower, ["support", "ticket", "tiker", "ticker"])
+  const trigger: "NEW_SUPPORT_TICKET" | "NEW_LEAD" | "MANUAL" = mentionsTicket ? "NEW_SUPPORT_TICKET" : lower.includes("new lead") ? "NEW_LEAD" : "MANUAL"
   const actions: WorkflowAction[] = []
 
   if (hasAny(lower, ["crm", "record", "lead"])) {
@@ -213,7 +214,7 @@ export function parseWorkflowPrompt(prompt: string): {
     })
   }
 
-  if (hasAny(lower, ["ticket", "support issue", "support request"])) {
+  if (hasAny(lower, ["ticket", "tiker", "ticker", "support issue", "support request"])) {
     actions.push({
       type: "create_ticket",
       label: "Create support ticket",
