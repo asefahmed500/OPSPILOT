@@ -9,6 +9,10 @@ export const assistantActionSchema = z.object({
   company: z.string().optional(),
   subject: z.string().optional(),
   body: z.string().optional(),
+  persona: z.string().optional(),
+  tone: z.string().optional(),
+  audience: z.string().optional(),
+  callToAction: z.string().optional(),
   period: z.enum(["daily", "weekly"]).optional(),
   prompt: z.string().optional(),
   runNow: z.boolean().optional(),
@@ -56,10 +60,56 @@ function cleanPromptTopic(message: string) {
     .trim()
 }
 
+function inferCompany(message: string) {
+  const match = message.match(/\b(?:company|org|organization|business|startup)\s+(?:is|named|called)?\s*([A-Z][A-Za-z0-9&.\- ]{1,80}?)(?=\s+(?:about|and|with|to|for|then|email|mail|,|$))/)
+
+  return match?.[1]?.trim()
+}
+
 function inferName(message: string, email: string | undefined) {
   const explicitName = message.match(/\b(?:to|for|customer|client|person|lead)\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2})\b/)?.[1]
 
   return explicitName ?? titleCaseFromEmail(email)
+}
+
+function inferPersona(message: string) {
+  const match = message.match(/\b(?:as|from)\s+(?:a|an|the)?\s*(founder|ceo|sales rep|support agent|account manager|operator|consultant|marketer|product manager)\b/i)
+
+  return match?.[1]
+}
+
+function inferAudience(message: string) {
+  const match = message.match(/\b(?:for|to)\s+(startup founders|small teams|operations teams|saas owners|customers|clients|agencies|ecommerce teams|support teams)\b/i)
+
+  return match?.[1]
+}
+
+function inferTone(message: string) {
+  const lower = message.toLowerCase()
+
+  if (hasAny(lower, ["friendly", "warm", "casual"])) {
+    return "friendly"
+  }
+
+  if (hasAny(lower, ["professional", "formal", "polished"])) {
+    return "professional"
+  }
+
+  if (hasAny(lower, ["urgent", "direct", "short"])) {
+    return "direct"
+  }
+
+  if (hasAny(lower, ["persuasive", "sales", "marketing", "makeketing", "markering"])) {
+    return "persuasive"
+  }
+
+  return undefined
+}
+
+function inferCallToAction(message: string) {
+  const match = message.match(/\b(?:cta|call to action|ask them to|invite them to)\s+([^.!?]{4,140}?)(?=\s+(?:and update|and create|and add|then|,)|[.!?]|$)/i)
+
+  return match?.[1]?.trim()
 }
 
 function inferAssistantIntent(message: string) {
@@ -89,8 +139,14 @@ function inferAssistantIntent(message: string) {
 
 export function fallbackAssistantPlan(message: string): AssistantPlan {
   const lower = message.toLowerCase()
-  const email = extractEmail(message)
+  const emails = extractEmails(message)
+  const email = emails[0]
   const name = inferName(message, email)
+  const company = inferCompany(message)
+  const persona = inferPersona(message)
+  const audience = inferAudience(message)
+  const tone = inferTone(message)
+  const callToAction = inferCallToAction(message)
   const topic = cleanPromptTopic(message) || message
   const intent = inferAssistantIntent(message)
   const shouldCreateLead = intent.wantsCrm || (intent.wantsEmail && Boolean(email))
@@ -107,6 +163,11 @@ export function fallbackAssistantPlan(message: string): AssistantPlan {
           prompt: message.replace(/^\/workflow\s*/i, "").trim() || message,
           email,
           name,
+          company,
+          persona,
+          tone,
+          audience,
+          callToAction,
           runNow: intent.wantsRunNow,
         },
       ],
@@ -115,23 +176,30 @@ export function fallbackAssistantPlan(message: string): AssistantPlan {
   }
 
   if (intent.wantsEmail) {
+    const recipients = emails.length ? emails : [undefined]
+
     return {
       actions: [
-        {
+        ...recipients.map((recipient) => ({
           type: "send_email",
-          email,
-          name,
+          email: recipient,
+          name: inferName(message, recipient),
+          company,
           subject: intent.wantsMarketing ? "New from OpsPilot" : "A quick update from OpsPilot",
           body: topic,
-        },
+          persona,
+          tone,
+          audience,
+          callToAction,
+        } as const)),
         ...(shouldCreateLead
-          ? [{ type: "create_lead" as const, name: name ?? "Email recipient", email, description: message }]
+          ? recipients.filter(Boolean).map((recipient) => ({ type: "create_lead" as const, name: inferName(message, recipient) ?? "Email recipient", email: recipient, company, description: message }))
           : []),
         ...(shouldCreateTask
           ? [{ type: "create_task" as const, title: email ? `Follow up with ${email}` : "Follow up with customer", description: message }]
           : []),
         ...(shouldCreateTicket
-          ? [{ type: "create_ticket" as const, subject: "Customer reply follow-up", email, body: message }]
+          ? recipients.filter(Boolean).map((recipient) => ({ type: "create_ticket" as const, subject: "Customer reply follow-up", email: recipient, body: message }))
           : []),
         ...(shouldCreateReport
           ? [{ type: "create_report" as const, period: lower.includes("daily") ? ("daily" as const) : ("weekly" as const) }]
@@ -144,7 +212,7 @@ export function fallbackAssistantPlan(message: string): AssistantPlan {
   if ([intent.wantsCrm, intent.wantsTask, intent.wantsTicket, intent.wantsReport].filter(Boolean).length > 1) {
     return {
       actions: [
-        ...(intent.wantsCrm ? [{ type: "create_lead" as const, name: name ?? "Assistant customer", email, description: message }] : []),
+        ...(intent.wantsCrm ? [{ type: "create_lead" as const, name: name ?? "Assistant customer", email, company, description: message }] : []),
         ...(intent.wantsTicket ? [{ type: "create_ticket" as const, subject: "Assistant-created support ticket", email, body: message }] : []),
         ...(intent.wantsTask ? [{ type: "create_task" as const, title: email ? `Follow up with ${email}` : "Follow up with customer", description: message }] : []),
         ...(intent.wantsReport ? [{ type: "create_report" as const, period: lower.includes("daily") ? ("daily" as const) : ("weekly" as const) }] : []),
@@ -155,7 +223,7 @@ export function fallbackAssistantPlan(message: string): AssistantPlan {
 
   if (intent.wantsCrm) {
     return {
-      actions: [{ type: "create_lead", name: name ?? "New inbound lead", email, description: message }],
+      actions: [{ type: "create_lead", name: name ?? "New inbound lead", email, company, description: message }],
       reply: "I will create a CRM lead and attach this request as context.",
     }
   }

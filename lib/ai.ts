@@ -98,10 +98,12 @@ async function generateAssistantPlan(message: string) {
       "Be typo tolerant: users may write meil, emsil, tsk, taks, tiker, makeketing, markering, or allothers.",
       "For workflow commands and reply triggers, create a create_workflow action. Use runNow true only if the user asks to run/execute/send now.",
       "For email requests, use send_email and include recipient email. Put the user's topic/request in body; the app will generate polished customer-facing copy.",
+      "For persona, tone, audience, and CTA instructions, preserve them on the action as persona, tone, audience, and callToAction.",
       "If an email command asks to update CRM/tasks/support/reports or says update all/everything, add the matching internal actions after send_email.",
+      "For multiple recipient emails, create one send_email action for each recipient. Add CRM/ticket records for real recipient emails when requested.",
       "For customer reply/client reply triggers, prefer create_workflow with a support-ticket style trigger prompt.",
       "Never delete records. Do not invent external integrations. Never invent placeholder customer emails; use only emails present in the user message and keep missing emails empty.",
-      "Schema: {\"actions\":[{\"type\":\"send_email\",\"name\":\"Customer Name\",\"subject\":\"New from OpsPilot\",\"body\":\"topic to write about\"}],\"reply\":\"...\"}",
+      "Schema: {\"actions\":[{\"type\":\"send_email\",\"email\":\"customer@example.com\",\"name\":\"Customer Name\",\"company\":\"Company\",\"subject\":\"New from OpsPilot\",\"body\":\"topic to write about\",\"persona\":\"founder\",\"tone\":\"friendly\",\"audience\":\"startup founders\",\"callToAction\":\"book a demo\"}],\"reply\":\"...\"}",
     ].join(" "),
     message
   )
@@ -160,11 +162,19 @@ export async function generateWorkflowMarketingEmail({
   prompt,
   customerName,
   company,
+  persona,
+  tone,
+  audience,
+  callToAction,
 }: {
   workflowName: string
   prompt: string
   customerName?: string
   company?: string
+  persona?: string
+  tone?: string
+  audience?: string
+  callToAction?: string
 }) {
   const fallbackSubject = workflowName.toLowerCase().includes("follow")
     ? workflowName
@@ -173,13 +183,14 @@ export async function generateWorkflowMarketingEmail({
     customerName ? `Hi ${customerName},` : "Hi,",
     "",
     "I wanted to share a quick update from OpsPilot.",
-    "OpsPilot helps teams automate CRM follow-up, support handoffs, task creation, and everyday operational workflows so work moves faster with less manual tracking.",
+    `${prompt || "OpsPilot helps teams automate CRM follow-up, support handoffs, task creation, and everyday operational workflows so work moves faster with less manual tracking."}`,
+    audience ? `This is especially useful for ${audience}.` : "",
     "",
-    "If this is useful for your team, I would be happy to share the next steps.",
+    callToAction ? `${callToAction[0]?.toUpperCase()}${callToAction.slice(1)}.` : "If this is useful for your team, I would be happy to share the next steps.",
     "",
     "Best,",
-    "The OpsPilot team",
-  ].join("\n")
+    persona ? `The OpsPilot ${persona}` : "The OpsPilot team",
+  ].filter(Boolean).join("\n")
 
   const text = await generateAiText(
     [
@@ -187,6 +198,7 @@ export async function generateWorkflowMarketingEmail({
       "Return only JSON. Do not include markdown.",
       "The customer must not see internal workflow actions, database updates, ticket IDs, task IDs, or automation logs.",
       "Write concise, professional email copy based on the user's workflow prompt.",
+      "Respect persona, tone, audience, and CTA instructions when present.",
       "Keep it helpful and specific, not spammy. Do not invent pricing or unsupported integrations.",
       "Schema: {\"subject\":\"...\",\"body\":\"...\"}",
     ].join(" "),
@@ -194,6 +206,10 @@ export async function generateWorkflowMarketingEmail({
       `Workflow name: ${workflowName}`,
       `Customer name: ${customerName ?? "Unknown"}`,
       `Customer company: ${company ?? "Unknown"}`,
+      `Persona/from voice: ${persona ?? "OpsPilot team"}`,
+      `Tone: ${tone ?? "professional"}`,
+      `Audience: ${audience ?? "customer"}`,
+      `Call to action: ${callToAction ?? "share next steps"}`,
       `Marketing/follow-up request: ${prompt}`,
     ].join("\n")
   )

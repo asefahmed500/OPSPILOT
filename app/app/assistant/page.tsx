@@ -4,9 +4,9 @@ import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
 
 const demoPrompts = [
-  "Write a professional marketing email about OpsPilot automating CRM, support, tasks, and reports. Send it to customer@example.com, create the customer as a CRM lead, add a follow-up task, create a support ticket for replies, and generate a weekly report.",
+  "Write a friendly founder email for SaaS owners about OpsPilot automating CRM, support, tasks, and reports. Send it to customer@example.com, create the customer as a CRM lead, add a follow-up task, create a support ticket for replies, and generate a weekly report.",
   "/workflow when a customer replies about OpsPilot, create a support ticket, update CRM, create a follow-up task, and prepare a weekly report.",
-  "Create a CRM lead for customer@example.com, add a high-priority follow-up task, and generate a weekly report.",
+  "As an account manager, write a direct renewal email for Acme about reducing manual operations, send it to buyer@example.com, add CRM, ticket, task, and report.",
 ]
 
 const automationSurfaces = [

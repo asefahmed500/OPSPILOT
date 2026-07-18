@@ -12,6 +12,10 @@ type MarketingEmailGenerator = (input: {
   prompt: string
   customerName?: string
   company?: string
+  persona?: string
+  tone?: string
+  audience?: string
+  callToAction?: string
 }) => Promise<{ subject: string; body: string }>
 
 type AgentStep = {
@@ -93,6 +97,10 @@ export async function executeAssistantPlan({
         prompt: action.body ?? action.description ?? action.prompt ?? message,
         customerName: action.name,
         company: action.company,
+        persona: action.persona,
+        tone: action.tone,
+        audience: action.audience,
+        callToAction: action.callToAction,
       })
 
       await sendWorkflowEmail({

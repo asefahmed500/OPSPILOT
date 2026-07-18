@@ -34,4 +34,43 @@ describe("assistant natural-language fallback planner", () => {
       runNow: false,
     })
   })
+
+  it("preserves persona, tone, audience, company, and CTA instructions for email generation", () => {
+    const plan = fallbackAssistantPlan(
+      "as founder write friendly email for saas owners company Acme about automating support send to buyer@example.com ask them to book a demo and update crm task ticket report"
+    )
+
+    expect(plan.actions.map((action) => action.type)).toEqual([
+      "send_email",
+      "create_lead",
+      "create_task",
+      "create_ticket",
+      "create_report",
+    ])
+    expect(plan.actions[0]).toMatchObject({
+      type: "send_email",
+      email: "buyer@example.com",
+      company: "Acme",
+      persona: "founder",
+      tone: "friendly",
+      audience: "saas owners",
+      callToAction: "book a demo",
+    })
+  })
+
+  it("creates one send action per real recipient without inventing emails", () => {
+    const plan = fallbackAssistantPlan(
+      "send a professional email about OpsPilot to jane@example.com and bob@example.com then update crm"
+    )
+
+    expect(plan.actions.filter((action) => action.type === "send_email")).toHaveLength(2)
+    expect(plan.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "send_email", email: "jane@example.com" }),
+        expect.objectContaining({ type: "send_email", email: "bob@example.com" }),
+        expect.objectContaining({ type: "create_lead", email: "jane@example.com" }),
+        expect.objectContaining({ type: "create_lead", email: "bob@example.com" }),
+      ])
+    )
+  })
 })
