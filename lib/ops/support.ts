@@ -256,6 +256,34 @@ export async function sendConfirmedTicketDraft(
   })
 }
 
+export async function deleteTicket(workspaceId: string, ticketId: string) {
+  const ticket = await db.ticket.findFirst({
+    where: { id: ticketId, workspaceId },
+    select: { id: true, subject: true },
+  })
+
+  if (!ticket) {
+    throw new AppError("Ticket not found", 404, "TICKET_NOT_FOUND")
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.ticket.delete({
+      where: { id: ticket.id },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "ticket.deleted",
+        message: `Deleted ticket "${ticket.subject}"`,
+        metadata: { ticketId: ticket.id },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: true }
+}
+
 function normalizeSubject(subject: string) {
   return subject.toLowerCase().replace(/^(re|fw|fwd):\s*/i, "").trim()
 }

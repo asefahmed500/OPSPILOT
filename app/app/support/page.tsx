@@ -7,6 +7,7 @@ import { InboundEmailForm } from "@/components/app/inbound-email-form"
 import { SendTicketDraftForm } from "@/components/app/send-ticket-draft-form"
 import { SyncSupportInboxButton } from "@/components/app/sync-support-inbox-button"
 import { CleanupSupportButton } from "@/components/app/cleanup-support-button"
+import { DeleteResourceButton } from "@/components/app/delete-resource-button"
 
 export default async function SupportPage() {
   const user = await requireUser()
@@ -39,7 +40,10 @@ export default async function SupportPage() {
                   <p className="font-medium">{ticket.subject}</p>
                   <p className="text-sm text-slate-500">{ticket.customerEmail}</p>
                 </div>
-                <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium">{ticket.category}</span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium">{ticket.category}</span>
+                  <DeleteResourceButton endpoint={`/api/support/tickets/${ticket.id}`} label="ticket" />
+                </div>
               </div>
               <p className="mt-3 text-sm text-slate-600">{ticket.aiDraft}</p>
               <p className="mt-2 text-xs text-slate-500">{ticket.status}{ticket.escalated ? " - escalated" : ""}</p>

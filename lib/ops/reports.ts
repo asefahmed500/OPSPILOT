@@ -1,5 +1,6 @@
 import "server-only"
 import { db } from "@/lib/db"
+import { AppError } from "@/lib/errors"
 
 export async function buildWorkspaceMetrics(workspaceId: string) {
   const [tasks, doneTasks, leads, tickets, escalatedTickets, activities] = await Promise.all([
@@ -60,4 +61,32 @@ export async function createReport(workspaceId: string, period = "weekly") {
 
     return report
   })
+}
+
+export async function deleteReport(workspaceId: string, reportId: string) {
+  const report = await db.report.findFirst({
+    where: { id: reportId, workspaceId },
+    select: { id: true, title: true },
+  })
+
+  if (!report) {
+    throw new AppError("Report not found", 404, "REPORT_NOT_FOUND")
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.report.delete({
+      where: { id: report.id },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "report.deleted",
+        message: `Deleted report "${report.title}"`,
+        metadata: { reportId: report.id },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: true }
 }

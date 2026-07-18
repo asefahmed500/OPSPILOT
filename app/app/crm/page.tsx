@@ -2,6 +2,7 @@ import { ActionForm } from "@/components/app/action-form"
 import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
+import { DeleteResourceButton } from "@/components/app/delete-resource-button"
 
 export default async function CrmPage() {
   const user = await requireUser()
@@ -27,7 +28,10 @@ export default async function CrmPage() {
                   <p className="font-medium">{lead.name}</p>
                   <p className="text-sm text-slate-500">{lead.email} {lead.company ? `- ${lead.company.name}` : ""}</p>
                 </div>
-                <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-medium">Score {lead.score}</span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-medium">Score {lead.score}</span>
+                  <DeleteResourceButton endpoint={`/api/crm/leads/${lead.id}`} label="lead" />
+                </div>
               </div>
               <p className="mt-3 text-sm text-slate-600">{lead.summary}</p>
               <p className="mt-2 text-sm font-medium">{lead.nextAction}</p>

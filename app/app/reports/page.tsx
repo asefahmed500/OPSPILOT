@@ -2,6 +2,7 @@ import { ActionForm } from "@/components/app/action-form"
 import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
+import { DeleteResourceButton } from "@/components/app/delete-resource-button"
 
 export default async function ReportsPage() {
   const user = await requireUser()
@@ -22,7 +23,10 @@ export default async function ReportsPage() {
         <div className="mt-4 space-y-3">
           {reports.map((report) => (
             <div key={report.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="font-medium">{report.title}</p>
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-medium">{report.title}</p>
+                <DeleteResourceButton endpoint={`/api/reports/${report.id}`} label="report" />
+              </div>
               <pre className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{report.body}</pre>
             </div>
           ))}

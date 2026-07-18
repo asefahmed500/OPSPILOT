@@ -4,7 +4,7 @@ import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
 import { RunWorkflowButton } from "@/components/app/run-workflow-button"
 import Link from "next/link"
-import { DeleteWorkflowButton } from "@/components/app/delete-workflow-button"
+import { DeleteResourceButton } from "@/components/app/delete-resource-button"
 
 function workflowOutputValue(
   output: unknown,
@@ -54,7 +54,7 @@ export default async function WorkflowsPage() {
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   <RunWorkflowButton workflowId={workflow.id} />
-                  <DeleteWorkflowButton workflowId={workflow.id} />
+                  <DeleteResourceButton endpoint={`/api/workflows/${workflow.id}`} label="workflow" />
                 </div>
               </div>
               <p className="mt-3 text-sm text-slate-600">{workflow.prompt}</p>

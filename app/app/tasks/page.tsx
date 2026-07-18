@@ -2,7 +2,7 @@ import { ActionForm } from "@/components/app/action-form"
 import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
-import { DeleteTaskButton } from "@/components/app/delete-task-button"
+import { DeleteResourceButton } from "@/components/app/delete-resource-button"
 
 export default async function TasksPage() {
   const user = await requireUser()
@@ -27,7 +27,7 @@ export default async function TasksPage() {
                 <p className="font-medium">{task.title}</p>
                 <div className="flex items-center gap-2">
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium">{task.priority}</span>
-                  <DeleteTaskButton taskId={task.id} />
+                  <DeleteResourceButton endpoint={`/api/tasks/${task.id}`} label="task" />
                 </div>
               </div>
               <p className="mt-2 text-sm text-slate-600">{task.description}</p>

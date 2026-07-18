@@ -1,6 +1,7 @@
 import "server-only"
 import { db } from "@/lib/db"
 import { nextLeadAction, scoreLead, summarizeLead } from "@/lib/ops/rules"
+import { AppError } from "@/lib/errors"
 
 export type LeadInput = {
   name: string
@@ -82,4 +83,32 @@ export async function createLead(workspaceId: string, input: LeadInput) {
 
     return lead
   })
+}
+
+export async function deleteLead(workspaceId: string, leadId: string) {
+  const lead = await db.lead.findFirst({
+    where: { id: leadId, workspaceId },
+    select: { id: true, name: true },
+  })
+
+  if (!lead) {
+    throw new AppError("Lead not found", 404, "LEAD_NOT_FOUND")
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.lead.delete({
+      where: { id: lead.id },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "lead.deleted",
+        message: `Deleted lead "${lead.name}"`,
+        metadata: { leadId: lead.id },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: true }
 }
