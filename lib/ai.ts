@@ -1,14 +1,9 @@
 import "server-only"
-import { createHash } from "node:crypto"
 import OpenAI from "openai"
 import { z } from "zod"
 import { env } from "@/lib/env"
-import { createLead } from "@/lib/ops/lead"
-import { createTask, taskFromPrompt } from "@/lib/ops/tasks"
-import { createTicket } from "@/lib/ops/support"
-import { createReport } from "@/lib/ops/reports"
-import { sendWorkflowEmail } from "@/lib/email"
 import { assistantPlanSchema, fallbackAssistantPlan } from "@/lib/ops/assistant-planning"
+import { executeAssistantPlan } from "@/lib/ops/assistant-agent"
 import type { WorkflowAction } from "@/lib/ops/rules"
 
 const aiApiKey = env.AI_API_KEY ?? env.HCNSEC_API_KEY ?? env.OPENAI_API_KEY
@@ -201,101 +196,11 @@ export async function generateWorkflowMarketingEmail({
 }
 
 export async function executeAssistantRequest(workspaceId: string, message: string) {
-  const messageHash = createHash("sha1").update(`${workspaceId}:${message}:${Date.now()}`).digest("hex").slice(0, 10)
   const plan = await generateAssistantPlan(message)
-  const completed: string[] = []
-
-  for (const action of plan.actions) {
-    if (action.type === "create_lead") {
-      const lead = await createLead(workspaceId, {
-        name: action.name ?? action.title ?? "New inbound lead",
-        email: action.email ?? `lead-${messageHash}@example.com`,
-        company: action.company,
-        source: "AI Assistant",
-        notes: action.description ?? message,
-      })
-
-      completed.push(`created CRM lead "${lead.name}"`)
-      continue
-    }
-
-    if (action.type === "send_email") {
-      if (!action.email) {
-        completed.push("skipped email because no recipient email was provided")
-        continue
-      }
-
-      const generatedEmail = await generateWorkflowMarketingEmail({
-        workflowName: action.subject ?? "OpsPilot assistant email",
-        prompt: action.body ?? action.description ?? action.prompt ?? message,
-        customerName: action.name,
-        company: action.company,
-      })
-
-      await sendWorkflowEmail({
-        to: action.email,
-        workflowName: action.subject ?? "OpsPilot assistant email",
-        subject: action.subject ?? generatedEmail.subject,
-        body: generatedEmail.body,
-      })
-
-      completed.push(`sent email to ${action.email}`)
-      continue
-    }
-
-    if (action.type === "create_workflow") {
-      const { createWorkflow, runWorkflow } = await import("@/lib/ops/workflows")
-      const workflowPrompt = action.prompt ?? action.description ?? message
-      const workflow = await createWorkflow(workspaceId, workflowPrompt, action.title ?? "Assistant workflow", {
-        customerEmail: action.email,
-        customerName: action.name,
-        company: action.company,
-      })
-
-      if (action.runNow) {
-        try {
-          await runWorkflow(workspaceId, workflow.id)
-          completed.push(`created and ran workflow "${workflow.name}"`)
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : "unknown run error"
-          completed.push(`created workflow "${workflow.name}" but the run needs attention: ${reason}`)
-        }
-      } else {
-        completed.push(`created workflow "${workflow.name}"`)
-      }
-
-      continue
-    }
-
-    if (action.type === "create_ticket") {
-      const ticket = await createTicket(workspaceId, {
-        subject: action.subject ?? action.title ?? "Assistant-created support ticket",
-        customerEmail: action.email ?? `customer-${messageHash}@example.com`,
-        body: action.body ?? action.description ?? message,
-      })
-
-      completed.push(`created support ticket "${ticket.subject}"`)
-      continue
-    }
-
-    if (action.type === "create_report") {
-      const report = await createReport(workspaceId, action.period ?? "weekly")
-
-      completed.push(`generated ${report.title}`)
-      continue
-    }
-
-    const task = await createTask(workspaceId, {
-      title: action.title ?? taskFromPrompt(message).title,
-      description: action.description ?? message,
-      priority: "MEDIUM",
-    })
-
-    completed.push(`created task "${task.title}"`)
-  }
-
-  return {
-    action: "assistant.executed",
-    content: `${plan.reply} Completed: ${completed.join(", ")}.`,
-  }
+  return executeAssistantPlan({
+    workspaceId,
+    message,
+    plan,
+    generateMarketingEmail: generateWorkflowMarketingEmail,
+  })
 }

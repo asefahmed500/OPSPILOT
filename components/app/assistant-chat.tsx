@@ -80,7 +80,7 @@ export function AssistantChat({
           messages.map((message, index) => (
             <div key={`${message.role}-${index}`} className={`rounded-lg px-4 py-3 text-sm leading-6 shadow-sm ${message.role === "user" ? "ml-auto max-w-[86%] bg-slate-950 text-white" : "mr-auto max-w-[86%] border border-slate-200 bg-slate-50 text-slate-800"}`}>
               {message.action ? <p className="mb-1 text-xs font-semibold uppercase text-slate-500">{message.action}</p> : null}
-              {message.content}
+              <span className="whitespace-pre-line">{message.content}</span>
             </div>
           ))
         ) : (
