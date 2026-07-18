@@ -13,6 +13,7 @@ type SyncedEmail = {
 }
 
 const SYNC_TIMEOUT_MS = 25_000
+const RECENT_INBOX_WINDOW = 10
 
 function timeoutError(message: string) {
   return new AppError(message, 504, "IMAP_SYNC_TIMEOUT")
@@ -96,26 +97,26 @@ export async function syncSupportInbox(workspaceId: string) {
     const lock = await withTimeout(client.getMailboxLock("INBOX", { acquireTimeout: 10_000 }), "Timed out opening the Gmail inbox.", 12_000)
 
     try {
-      const searchResult = await withTimeout(client.search({ all: true }, { uid: true }), "Timed out searching Gmail inbox.", 12_000)
-      const recentUids = searchResult || []
-      const limited = recentUids.slice(-35)
+      const messageCount = client.mailbox && typeof client.mailbox === "object" ? client.mailbox.exists : 0
 
-      if (!limited.length) {
+      if (!messageCount) {
         return { synced, skipped }
       }
 
-      for await (const message of client.fetch(limited, {
+      const firstSequence = Math.max(1, messageCount - RECENT_INBOX_WINDOW + 1)
+      const recentRange = `${firstSequence}:*`
+
+      for await (const message of client.fetch(recentRange, {
         uid: true,
         flags: true,
+        source: { maxLength: 300_000 },
       })) {
-        const parsed = await withTimeout(client.download(message.uid, undefined, { uid: true }), "Timed out downloading a Gmail message.", 12_000)
-        const chunks: Buffer[] = []
-
-        for await (const chunk of parsed.content) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+        if (!message.source?.length) {
+          skipped.push({ uid: message.uid, reason: "Missing message source" })
+          continue
         }
 
-        const raw = Buffer.concat(chunks).toString("utf8")
+        const raw = message.source.toString("utf8")
         const email = await simpleParser(raw)
         const from = email.from?.value[0]?.address?.toLowerCase().trim() ?? null
         const subject = email.subject?.trim() || "Customer email reply"
