@@ -35,6 +35,7 @@ const envSchema = z.object({
   AI_MODEL: z.string().default("DeepSeek-V4-Flash"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().optional(),
+  INBOUND_EMAIL_WEBHOOK_SECRET: z.string().min(16).optional(),
 })
 
 export const env = envSchema.parse(process.env)

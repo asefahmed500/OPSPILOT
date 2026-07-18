@@ -30,7 +30,7 @@ export function CustomerReplyForm({ ticketId }: { ticketId: string }) {
       }
 
       setBody("")
-      setStatus("AI replied, updated the ticket, and created a follow-up task.")
+      setStatus("AI draft generated. Review and confirm before sending.")
       router.refresh()
     } catch {
       setStatus("Network error. Please try again.")
@@ -46,14 +46,14 @@ export function CustomerReplyForm({ ticketId }: { ticketId: string }) {
         <textarea
           value={body}
           onChange={(event) => setBody(event.target.value)}
-          placeholder="Paste the customer reply here. OpsPilot will answer, update the ticket, and create a task."
+          placeholder="Paste the customer reply here. OpsPilot will update the ticket, create a task, and draft a reply for your approval."
           className="min-h-24 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-slate-950"
           required
         />
       </label>
       {status ? <p className="mt-2 text-xs text-slate-600" role="status">{status}</p> : null}
       <Button type="submit" size="sm" className="mt-3" disabled={loading || !body.trim()}>
-        {loading ? "Replying..." : "AI reply + update"}
+        {loading ? "Drafting..." : "Draft reply + update"}
       </Button>
     </form>
   )

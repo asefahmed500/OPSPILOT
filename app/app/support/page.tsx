@@ -3,11 +3,17 @@ import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
 import { CustomerReplyForm } from "@/components/app/customer-reply-form"
+import { InboundEmailForm } from "@/components/app/inbound-email-form"
+import { SendTicketDraftForm } from "@/components/app/send-ticket-draft-form"
 
 export default async function SupportPage() {
   const user = await requireUser()
   const workspace = await requireWorkspace(user.id)
-  const tickets = await db.ticket.findMany({ where: { workspaceId: workspace.id }, orderBy: { createdAt: "desc" }, include: { messages: true } })
+  const tickets = await db.ticket.findMany({
+    where: { workspaceId: workspace.id },
+    orderBy: { createdAt: "desc" },
+    include: { messages: { orderBy: { createdAt: "asc" } } },
+  })
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
@@ -17,6 +23,7 @@ export default async function SupportPage() {
         <div className="mt-6">
           <ActionForm kind="ticket" endpoint="/api/support/tickets" submitLabel="Create ticket" successLabel="Ticket created" />
         </div>
+        <InboundEmailForm />
       </div>
       <div className="op-panel p-5">
         <h2 className="font-semibold tracking-tight">Ticket inbox</h2>
@@ -40,6 +47,9 @@ export default async function SupportPage() {
                   </div>
                 ))}
               </div>
+              {ticket.aiDraft && !ticket.messages.some((message) => message.fromAgent && message.body === ticket.aiDraft) ? (
+                <SendTicketDraftForm ticketId={ticket.id} initialDraft={ticket.aiDraft} />
+              ) : null}
               <CustomerReplyForm ticketId={ticket.id} />
             </div>
           ))}

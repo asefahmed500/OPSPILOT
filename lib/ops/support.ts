@@ -125,20 +125,12 @@ export async function handleCustomerReply(
 
   const reply = await draftCustomerReply(ticket, body)
 
-  const result = await db.$transaction(async (tx) => {
+  return db.$transaction(async (tx) => {
     const customerMessage = await tx.ticketMessage.create({
       data: {
         ticketId: ticket.id,
         body,
         fromAgent: false,
-      },
-    })
-
-    const agentMessage = await tx.ticketMessage.create({
-      data: {
-        ticketId: ticket.id,
-        body: reply,
-        fromAgent: true,
       },
     })
 
@@ -164,31 +156,48 @@ export async function handleCustomerReply(
     await tx.activityLog.create({
       data: {
         type: "ticket.reply.auto_sent",
-        message: `Auto-replied to ${ticket.customerEmail} and created follow-up task "${task.title}"`,
+        message: `Drafted a support reply for ${ticket.customerEmail} and created follow-up task "${task.title}"`,
         metadata: {
           ticketId: ticket.id,
           customerMessageId: customerMessage.id,
-          agentMessageId: agentMessage.id,
           taskId: task.id,
         },
         workspaceId,
       },
     })
 
-    return { ticket: updatedTicket, task, reply }
+    return { ticket: updatedTicket, task, reply, needsConfirmation: true }
   })
+}
+
+export async function sendConfirmedTicketDraft(
+  workspaceId: string,
+  ticketId: string,
+  body: string
+) {
+  const ticket = await db.ticket.findFirst({
+    where: { id: ticketId, workspaceId },
+  })
+
+  if (!ticket) {
+    throw new AppError("Ticket not found", 404, "TICKET_NOT_FOUND")
+  }
+
+  if (!ticket.customerEmail) {
+    throw new AppError("Ticket does not have a customer email", 400, "TICKET_CUSTOMER_EMAIL_REQUIRED")
+  }
 
   try {
     await sendCustomerEmail({
       to: ticket.customerEmail,
       subject: `Re: ${ticket.subject}`,
-      body: reply,
+      body,
     })
   } catch (error) {
     await db.activityLog.create({
       data: {
-        type: "ticket.reply.email_failed",
-        message: `Auto-reply email failed for ${ticket.customerEmail}`,
+        type: "ticket.draft.email_failed",
+        message: `Confirmed draft email failed for ${ticket.customerEmail}`,
         metadata: {
           ticketId: ticket.id,
           error: error instanceof Error ? error.message : "Unknown email error",
@@ -197,8 +206,124 @@ export async function handleCustomerReply(
       },
     })
 
-    throw new AppError("Ticket updated, but the customer email failed", 502, "TICKET_REPLY_EMAIL_FAILED")
+    throw new AppError("Draft was not sent because the email failed", 502, "TICKET_DRAFT_EMAIL_FAILED")
   }
 
-  return result
+  return db.$transaction(async (tx) => {
+    const agentMessage = await tx.ticketMessage.create({
+      data: {
+        ticketId: ticket.id,
+        body,
+        fromAgent: true,
+      },
+    })
+
+    const updatedTicket = await tx.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        aiDraft: body,
+        status: ticket.escalated ? "ESCALATED" : "PENDING",
+      },
+      include: { messages: { orderBy: { createdAt: "asc" } } },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "ticket.draft.sent",
+        message: `Sent confirmed support reply to ${ticket.customerEmail}`,
+        metadata: {
+          ticketId: ticket.id,
+          agentMessageId: agentMessage.id,
+        },
+        workspaceId,
+      },
+    })
+
+    return { ticket: updatedTicket, sent: true }
+  })
+}
+
+function normalizeSubject(subject: string) {
+  return subject.toLowerCase().replace(/^(re|fw|fwd):\s*/i, "").trim()
+}
+
+export async function ingestInboundEmail(
+  workspaceId: string,
+  input: {
+    from: string
+    subject: string
+    body: string
+  }
+) {
+  const from = input.from.toLowerCase().trim()
+  const subject = input.subject.trim()
+  const normalizedSubject = normalizeSubject(subject)
+  const tickets = await db.ticket.findMany({
+    where: {
+      workspaceId,
+      customerEmail: from,
+      status: { not: "RESOLVED" },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  })
+  const existingTicket =
+    tickets.find((ticket) => normalizeSubject(ticket.subject) === normalizedSubject) ??
+    tickets[0]
+
+  if (existingTicket) {
+    const result = await handleCustomerReply(workspaceId, existingTicket.id, input.body)
+
+    await db.activityLog.create({
+      data: {
+        type: "inbound_email.ticket_updated",
+        message: `Ingested email reply from ${from} into "${existingTicket.subject}"`,
+        metadata: { ticketId: existingTicket.id },
+        workspaceId,
+      },
+    })
+
+    return { ...result, created: false }
+  }
+
+  const ticket = await createTicket(workspaceId, {
+    subject,
+    customerEmail: from,
+    body: input.body,
+    channel: "EMAIL",
+  })
+  const reply = await draftCustomerReply(ticket, input.body)
+  const result = await db.$transaction(async (tx) => {
+    const updatedTicket = await tx.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        aiDraft: reply,
+        status: ticket.escalated ? "ESCALATED" : "PENDING",
+      },
+      include: { messages: { orderBy: { createdAt: "asc" } } },
+    })
+
+    const task = await tx.task.create({
+      data: {
+        title: `Review inbound email: ${ticket.subject}`,
+        description: input.body,
+        priority: ticket.priority,
+        ticketId: ticket.id,
+        workspaceId,
+      },
+    })
+
+    return { ticket: updatedTicket, task, reply, needsConfirmation: true }
+  })
+
+  await db.activityLog.create({
+    data: {
+      type: "inbound_email.ticket_created",
+      message: `Created support ticket from inbound email by ${from}`,
+      metadata: { ticketId: ticket.id },
+      workspaceId,
+    },
+  })
+
+  return { ...result, created: true }
 }

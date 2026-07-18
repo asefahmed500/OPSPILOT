@@ -54,6 +54,17 @@ export const ticketReplySchema = z.object({
   body: text("Customer reply is required", 2000),
 })
 
+export const inboundEmailSchema = z.object({
+  workspaceSlug: optionalText(120),
+  from: z.string().trim().toLowerCase().email("Enter the customer sender email"),
+  subject: text("Email subject is required", 180),
+  body: text("Email body is required", 4000),
+})
+
+export const sendTicketDraftSchema = z.object({
+  body: text("Draft reply is required", 4000),
+})
+
 export const workflowSchema = z.object({
   name: optionalText(120),
   customerEmail: z.string().trim().toLowerCase().email("Enter a valid customer email").optional().or(z.literal("")),
