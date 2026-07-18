@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { type Resolver, useForm } from "react-hook-form"
 import { useRouter } from "next/navigation"
@@ -122,6 +122,7 @@ export function ActionForm({
   successLabel?: string
 }) {
   const router = useRouter()
+  const formId = useId()
   const [status, setStatus] = useState("")
   const schema = schemas[kind]
   const formFields = useMemo(() => fields[kind], [kind])
@@ -155,7 +156,7 @@ export function ActionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(submit)} className="op-panel p-5">
+    <form id={formId} onSubmit={handleSubmit(submit)} className="op-panel p-5" noValidate>
       <div className="grid gap-4">
         {formFields.map((field) => {
           const error = errors[field.name]?.message?.toString()
@@ -194,7 +195,7 @@ export function ActionForm({
         })}
       </div>
       {status ? <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-700" role="status">{status}</p> : null}
-      <Button type="submit" className="mt-5 w-full sm:w-auto" disabled={isSubmitting}>
+      <Button type="submit" form={formId} className="mt-5 w-full sm:w-auto" disabled={isSubmitting}>
         {isSubmitting ? "Working..." : submitLabel}
       </Button>
     </form>

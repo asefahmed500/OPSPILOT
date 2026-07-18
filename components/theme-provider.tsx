@@ -1,24 +1,16 @@
 "use client"
 
 import * as React from "react"
-import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-function ThemeProvider({
-  children,
-  ...props
-}: React.ComponentProps<typeof NextThemesProvider>) {
-  return (
-    <NextThemesProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-      {...props}
-    >
-      <ThemeHotkey />
-      {children}
-    </NextThemesProvider>
-  )
+type Theme = "light" | "dark"
+
+function getSystemTheme(): Theme {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+}
+
+function applyTheme(theme: Theme) {
+  document.documentElement.classList.toggle("dark", theme === "dark")
+  document.documentElement.style.colorScheme = theme
 }
 
 function isTypingTarget(target: EventTarget | null) {
@@ -34,8 +26,16 @@ function isTypingTarget(target: EventTarget | null) {
   )
 }
 
-function ThemeHotkey() {
-  const { resolvedTheme, setTheme } = useTheme()
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const themeRef = React.useRef<Theme>("light")
+
+  React.useEffect(() => {
+    const storedTheme = window.localStorage.getItem("opspilot-theme")
+    const initialTheme = storedTheme === "light" || storedTheme === "dark" ? storedTheme : getSystemTheme()
+
+    themeRef.current = initialTheme
+    applyTheme(initialTheme)
+  }, [])
 
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -55,7 +55,12 @@ function ThemeHotkey() {
         return
       }
 
-      setTheme(resolvedTheme === "dark" ? "light" : "dark")
+      const nextTheme = themeRef.current === "dark" ? "light" : "dark"
+
+      themeRef.current = nextTheme
+      window.localStorage.setItem("opspilot-theme", nextTheme)
+      applyTheme(nextTheme)
+
     }
 
     window.addEventListener("keydown", onKeyDown)
@@ -63,9 +68,9 @@ function ThemeHotkey() {
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [resolvedTheme, setTheme])
+  }, [])
 
-  return null
+  return children
 }
 
 export { ThemeProvider }

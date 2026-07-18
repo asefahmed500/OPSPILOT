@@ -44,20 +44,20 @@ export function InboundEmailForm() {
   }
 
   return (
-    <form onSubmit={submit} className="op-panel mt-6 p-5">
+    <form onSubmit={submit} className="op-panel mt-6 p-5" noValidate>
       <h2 className="font-semibold tracking-tight">Inbound email</h2>
       <div className="mt-4 grid gap-3">
         <label className="op-label">
           From
-          <input value={from} onChange={(event) => setFrom(event.target.value)} type="email" placeholder="customer@example.com" className="op-field" required />
+          <input value={from} onChange={(event) => setFrom(event.target.value)} type="email" placeholder="customer@example.com" className="op-field" />
         </label>
         <label className="op-label">
           Subject
-          <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Re: Need help" className="op-field" required />
+          <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Re: Need help" className="op-field" />
         </label>
         <label className="op-label">
           Email body
-          <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Paste the customer email reply. OpsPilot will create or update a ticket and draft a reply for your approval." className="op-field min-h-28 resize-y py-3 leading-6" required />
+          <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Paste the customer email reply. OpsPilot will create or update a ticket and draft a reply for your approval." className="op-field min-h-28 resize-y py-3 leading-6" />
         </label>
       </div>
       {status ? <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-700" role="status">{status}</p> : null}
