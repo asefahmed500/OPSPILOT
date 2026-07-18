@@ -341,3 +341,65 @@ export async function ingestInboundEmail(
 
   return { ...result, created: true }
 }
+
+function isSystemTicket(ticket: {
+  subject: string
+  customerEmail: string
+  messages: { body: string; fromAgent: boolean }[]
+}) {
+  const sender = ticket.customerEmail.toLowerCase()
+  const subject = ticket.subject.toLowerCase()
+  const customerText = ticket.messages
+    .filter((message) => !message.fromAgent)
+    .map((message) => message.body.toLowerCase())
+    .join("\n")
+
+  return (
+    sender.includes("mailer-daemon@") ||
+    sender.includes("postmaster@") ||
+    sender.includes("no-reply@") ||
+    sender.includes("noreply@") ||
+    sender.includes("notifications@") ||
+    subject.includes("delivery status notification") ||
+    subject.includes("password reset") ||
+    subject.includes("reset your password") ||
+    customerText.includes("reporting-mta:") ||
+    customerText.includes("final-recipient:") ||
+    customerText.includes("this is a system-generated email") ||
+    customerText.includes("replies to this email address are not monitored")
+  )
+}
+
+export async function cleanupSystemSupportTickets(workspaceId: string) {
+  const tickets = await db.ticket.findMany({
+    where: { workspaceId },
+    include: { messages: true },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  })
+  const junkTickets = tickets.filter(isSystemTicket)
+
+  if (!junkTickets.length) {
+    return { deleted: 0 }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.ticket.deleteMany({
+      where: {
+        workspaceId,
+        id: { in: junkTickets.map((ticket) => ticket.id) },
+      },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "ticket.cleanup.system_email",
+        message: `Removed ${junkTickets.length} system email ticket${junkTickets.length === 1 ? "" : "s"}`,
+        metadata: { ticketIds: junkTickets.map((ticket) => ticket.id) },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: junkTickets.length }
+}

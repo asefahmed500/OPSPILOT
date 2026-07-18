@@ -14,6 +14,38 @@ type SyncedEmail = {
 
 const SYNC_TIMEOUT_MS = 25_000
 const RECENT_INBOX_WINDOW = 5
+const blockedSenders = [
+  "mailer-daemon@",
+  "postmaster@",
+  "no-reply@",
+  "noreply@",
+  "do-not-reply@",
+  "donotreply@",
+  "notifications@",
+  "notification@",
+  "bounce@",
+]
+const blockedSubjectTerms = [
+  "delivery status notification",
+  "delivery incomplete",
+  "mail delivery",
+  "undeliverable",
+  "failure notice",
+  "returned mail",
+  "password reset",
+  "reset your password",
+  "verification code",
+  "security alert",
+]
+const blockedBodyTerms = [
+  "reporting-mta:",
+  "final-recipient:",
+  "diagnostic-code:",
+  "this is a system-generated email",
+  "replies to this email address are not monitored",
+  "delivery incomplete",
+  "there was a temporary problem delivering your message",
+]
 
 function timeoutError(message: string) {
   return new AppError(message, 504, "IMAP_SYNC_TIMEOUT")
@@ -69,6 +101,46 @@ function mailboxCredentials() {
   }
 
   return { user, pass }
+}
+
+function isRelevantCustomerEmail({
+  from,
+  subject,
+  body,
+  mailboxUser,
+}: {
+  from: string
+  subject: string
+  body: string
+  mailboxUser: string
+}) {
+  const normalizedFrom = from.toLowerCase()
+  const normalizedSubject = subject.toLowerCase()
+  const normalizedBody = body.toLowerCase()
+  const mailboxDomain = mailboxUser.split("@")[1]?.toLowerCase()
+  const senderDomain = normalizedFrom.split("@")[1]?.toLowerCase()
+
+  if (normalizedFrom === mailboxUser.toLowerCase()) {
+    return { relevant: false, reason: "Skipped own mailbox sender" }
+  }
+
+  if (blockedSenders.some((sender) => normalizedFrom.includes(sender))) {
+    return { relevant: false, reason: "Skipped automated sender" }
+  }
+
+  if (blockedSubjectTerms.some((term) => normalizedSubject.includes(term))) {
+    return { relevant: false, reason: "Skipped system subject" }
+  }
+
+  if (blockedBodyTerms.some((term) => normalizedBody.includes(term))) {
+    return { relevant: false, reason: "Skipped system email body" }
+  }
+
+  if (mailboxDomain && senderDomain === mailboxDomain && /notification|bounce|daemon|reply/i.test(normalizedFrom)) {
+    return { relevant: false, reason: "Skipped internal automated sender" }
+  }
+
+  return { relevant: true, reason: null }
 }
 
 export async function syncSupportInbox(workspaceId: string) {
@@ -149,6 +221,13 @@ export async function syncSupportInbox(workspaceId: string) {
 
         if (!from || !body) {
           skipped.push({ uid: message.uid, reason: "Missing sender or body" })
+          continue
+        }
+
+        const relevance = isRelevantCustomerEmail({ from, subject, body, mailboxUser: auth.user })
+
+        if (!relevance.relevant) {
+          skipped.push({ uid: message.uid, reason: relevance.reason ?? "Skipped irrelevant email" })
           continue
         }
 
