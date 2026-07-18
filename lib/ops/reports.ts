@@ -3,6 +3,25 @@ import { db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { emitAutomationEvent } from "@/lib/ops/events"
 
+function outputRunSteps(output: unknown) {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return []
+  }
+
+  const steps = (output as Record<string, unknown>).steps
+
+  if (!Array.isArray(steps)) {
+    return []
+  }
+
+  return steps
+    .filter((step): step is Record<string, unknown> => Boolean(step) && typeof step === "object" && !Array.isArray(step))
+    .map((step) => ({
+      tool: typeof step.tool === "string" ? step.tool : "automation.step",
+      status: typeof step.status === "string" ? step.status : "SKIPPED",
+    }))
+}
+
 export async function buildWorkspaceMetrics(workspaceId: string) {
   const [tasks, doneTasks, leads, contacts, tickets, escalatedTickets, workflows, workflowRuns, successfulWorkflowRuns, emailSentActivities, activities] = await Promise.all([
     db.task.count({ where: { workspaceId } }),
@@ -48,7 +67,6 @@ export async function createReport(workspaceId: string, period = "weekly", optio
     take: 5,
     include: {
       workflow: { select: { name: true, trigger: true } },
-      steps: { orderBy: { createdAt: "asc" } },
     },
   })
   const body = [
@@ -72,8 +90,9 @@ export async function createReport(workspaceId: string, period = "weekly", optio
     "Recent automation runs:",
     ...(recentRuns.length
       ? recentRuns.map((run) => {
-          const stepSummary = run.steps.length
-            ? run.steps.map((step) => `${step.tool}=${step.status}`).join(", ")
+          const steps = outputRunSteps(run.output)
+          const stepSummary = steps.length
+            ? steps.map((step) => `${step.tool}=${step.status}`).join(", ")
             : "No step records"
 
           return `- ${run.createdAt.toISOString()} | ${run.workflow.name} | ${run.status} | ${stepSummary}`

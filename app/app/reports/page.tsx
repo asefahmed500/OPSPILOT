@@ -89,6 +89,39 @@ function outputRunSteps(output: unknown) {
     }))
 }
 
+type AuditStep = ReturnType<typeof outputRunSteps>[number]
+
+async function getAutomationStepsByRunId(workspaceId: string, workflowRunIds: string[]) {
+  const client = db as unknown as {
+    automationRunStep?: {
+      findMany: (args: {
+        where: { workspaceId: string; workflowRunId: { in: string[] } }
+        orderBy: { createdAt: "asc" }
+      }) => Promise<Array<AuditStep & { workflowRunId?: string | null }>>
+    }
+  }
+
+  if (!client.automationRunStep || !workflowRunIds.length) {
+    return new Map<string, AuditStep[]>()
+  }
+
+  const steps = await client.automationRunStep.findMany({
+    where: { workspaceId, workflowRunId: { in: workflowRunIds } },
+    orderBy: { createdAt: "asc" },
+  }).catch(() => [])
+  const grouped = new Map<string, AuditStep[]>()
+
+  for (const step of steps) {
+    if (!step.workflowRunId) {
+      continue
+    }
+
+    grouped.set(step.workflowRunId, [...(grouped.get(step.workflowRunId) ?? []), step])
+  }
+
+  return grouped
+}
+
 async function getAutomationStepCounts(workspaceId: string) {
   const client = db as unknown as {
     automationRunStep?: {
@@ -122,7 +155,7 @@ async function getAutomationStepCounts(workspaceId: string) {
 export default async function ReportsPage() {
   const user = await requireUser()
   const workspace = await requireWorkspace(user.id)
-  const [reports, activities, workflowRuns, automationStepCounts] = await Promise.all([
+  const [reports, activities, workflowRunsBase, automationStepCounts] = await Promise.all([
     db.report.findMany({ where: { workspaceId: workspace.id }, orderBy: { createdAt: "desc" } }),
     db.activityLog.findMany({
       where: { workspaceId: workspace.id },
@@ -135,11 +168,15 @@ export default async function ReportsPage() {
       take: 6,
       include: {
         workflow: { select: { name: true, trigger: true } },
-        steps: { orderBy: { createdAt: "asc" } },
       },
     }),
     getAutomationStepCounts(workspace.id),
   ])
+  const stepsByRunId = await getAutomationStepsByRunId(workspace.id, workflowRunsBase.map((run) => run.id))
+  const workflowRuns = workflowRunsBase.map((run) => ({
+    ...run,
+    auditSteps: stepsByRunId.get(run.id) ?? outputRunSteps(run.output),
+  }))
   const [successfulSteps, failedSteps, skippedSteps] = automationStepCounts
   const totalSteps = successfulSteps + failedSteps + skippedSteps
   const successRate = totalSteps ? Math.round((successfulSteps / totalSteps) * 100) : 0
@@ -189,7 +226,6 @@ export default async function ReportsPage() {
             {workflowRuns.map((run) => {
               const actions = outputActions(run.output)
               const parameters = outputParameters(run.output)
-              const auditSteps = run.steps.length ? run.steps : outputRunSteps(run.output)
 
               return (
                 <div key={run.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -232,7 +268,7 @@ export default async function ReportsPage() {
                   ) : null}
 
                   <div className="mt-4 space-y-2">
-                    {auditSteps.length ? auditSteps.map((step) => (
+                    {run.auditSteps.length ? run.auditSteps.map((step) => (
                       <div key={step.id} className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2">
                         <div>
                           <p className="text-sm font-medium text-slate-950">{step.tool}</p>
