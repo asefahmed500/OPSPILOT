@@ -40,7 +40,7 @@ export function SyncSupportInboxButton() {
       )
       router.refresh()
     } catch (error) {
-      setStatus(error instanceof DOMException && error.name === "AbortError" ? "Gmail sync timed out. Check Gmail IMAP/app password, then try again." : "Network error. Please try again.")
+      setStatus(error instanceof DOMException && error.name === "AbortError" ? "Gmail sync timed out. Gmail login works, but the inbox fetch took too long. Try again or use the Inbound email form." : "Network error. Please try again.")
     } finally {
       clearTimeout(timeout)
       setLoading(false)

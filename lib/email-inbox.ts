@@ -13,16 +13,23 @@ type SyncedEmail = {
 }
 
 const SYNC_TIMEOUT_MS = 25_000
-const RECENT_INBOX_WINDOW = 10
+const RECENT_INBOX_WINDOW = 5
 
 function timeoutError(message: string) {
   return new AppError(message, 504, "IMAP_SYNC_TIMEOUT")
 }
 
-async function withTimeout<T>(promise: Promise<T>, message: string, timeoutMs = SYNC_TIMEOUT_MS) {
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : null
+}
+
+async function withTimeout<T>(promise: Promise<T>, message: string, timeoutMs = SYNC_TIMEOUT_MS, onTimeout?: () => void) {
   let timeout: ReturnType<typeof setTimeout> | undefined
   const timer = new Promise<never>((_, reject) => {
-    timeout = setTimeout(() => reject(timeoutError(message)), timeoutMs)
+    timeout = setTimeout(() => {
+      onTimeout?.()
+      reject(timeoutError(message))
+    }, timeoutMs)
   })
 
   try {
@@ -74,27 +81,38 @@ export async function syncSupportInbox(workspaceId: string) {
     logger: false,
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
-    socketTimeout: 25_000,
+    socketTimeout: 12_000,
+    disableAutoIdle: true,
+    maxIdleTime: 0,
   })
   const synced: SyncedEmail[] = []
   const skipped: { uid: number; reason: string }[] = []
+  let lastClientError: Error | null = null
+
+  client.on("error", (error) => {
+    lastClientError = error
+  })
+
+  const closeClient = () => {
+    client.close()
+  }
 
   try {
-    await withTimeout(client.connect(), "Gmail IMAP connection timed out. Check IMAP is enabled and the app password is valid.", 15_000)
+    await withTimeout(client.connect(), "Gmail IMAP connection timed out. Check IMAP is enabled and the app password is valid.", 15_000, closeClient)
   } catch (error) {
     if (error instanceof AppError) {
       throw error
     }
 
     throw new AppError(
-      error instanceof Error ? `Gmail IMAP connection failed: ${error.message}` : "Gmail IMAP connection failed",
+      `Gmail IMAP connection failed: ${errorMessage(lastClientError) ?? errorMessage(error) ?? "Unknown IMAP error"}`,
       502,
       "IMAP_CONNECTION_FAILED"
     )
   }
 
   try {
-    const lock = await withTimeout(client.getMailboxLock("INBOX", { acquireTimeout: 10_000 }), "Timed out opening the Gmail inbox.", 12_000)
+    const lock = await withTimeout(client.getMailboxLock("INBOX", { acquireTimeout: 8_000 }), "Timed out opening the Gmail inbox.", 10_000, closeClient)
 
     try {
       const messageCount = client.mailbox && typeof client.mailbox === "object" ? client.mailbox.exists : 0
@@ -109,7 +127,8 @@ export async function syncSupportInbox(workspaceId: string) {
       for await (const message of client.fetch(recentRange, {
         uid: true,
         flags: true,
-        source: { maxLength: 300_000 },
+        envelope: true,
+        source: { maxLength: 120_000 },
       })) {
         if (!message.source?.length) {
           skipped.push({ uid: message.uid, reason: "Missing message source" })
