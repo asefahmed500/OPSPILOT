@@ -57,6 +57,10 @@ npx prisma validate
 npm run ai:check
 ```
 
+## Hackathon Demo
+
+Use [HACKATHON_SCRIPT.md](HACKATHON_SCRIPT.md) for the pitch, live demo prompts, expected system changes, and backup lines if a local email provider blocks delivery.
+
 ## MVP Coverage
 
 - Public landing page

@@ -18,18 +18,30 @@ type AgentStep = {
   tool: string
   status: "completed" | "skipped" | "needs_attention"
   summary: string
+  verifyHref?: string
 }
 
 function formatAgentResponse(reply: string, steps: AgentStep[]) {
   const completed = steps.filter((step) => step.status === "completed")
   const skipped = steps.filter((step) => step.status === "skipped")
   const needsAttention = steps.filter((step) => step.status === "needs_attention")
+  const verifyLinks = Array.from(
+    new Map(
+      steps
+        .filter((step) => step.status === "completed" && step.verifyHref)
+        .map((step) => [step.verifyHref, step.summary])
+    ).entries()
+  )
   const lines = [
     reply,
     "",
     "Agent run:",
     ...steps.map((step) => `- ${step.status.replace("_", " ")}: ${step.summary}`),
   ]
+
+  if (verifyLinks.length) {
+    lines.push("", "Verify in OpsPilot:", ...verifyLinks.map(([href, summary]) => `- ${summary} -> ${href}`))
+  }
 
   if (completed.length === 0 && (skipped.length || needsAttention.length)) {
     lines.push("", "Nothing was executed yet because the command needs more information.")
@@ -66,7 +78,7 @@ export async function executeAssistantPlan({
         notes: action.description ?? message,
       })
 
-      steps.push({ tool: "crm.createLead", status: "completed", summary: `Created CRM lead "${lead.name}".` })
+      steps.push({ tool: "crm.createLead", status: "completed", summary: `Created CRM lead "${lead.name}".`, verifyHref: "/app/crm" })
       continue
     }
 
@@ -90,7 +102,7 @@ export async function executeAssistantPlan({
         body: generatedEmail.body,
       })
 
-      steps.push({ tool: "email.send", status: "completed", summary: `Sent customer email to ${action.email}.` })
+      steps.push({ tool: "email.send", status: "completed", summary: `Sent customer email to ${action.email}.`, verifyHref: "/app/settings" })
       continue
     }
 
@@ -104,13 +116,13 @@ export async function executeAssistantPlan({
       })
 
       if (!action.runNow) {
-        steps.push({ tool: "workflow.create", status: "completed", summary: `Created workflow "${workflow.name}".` })
+        steps.push({ tool: "workflow.create", status: "completed", summary: `Created workflow "${workflow.name}".`, verifyHref: "/app/workflows" })
         continue
       }
 
       try {
         await runWorkflow(workspaceId, workflow.id)
-        steps.push({ tool: "workflow.run", status: "completed", summary: `Created and ran workflow "${workflow.name}".` })
+        steps.push({ tool: "workflow.run", status: "completed", summary: `Created and ran workflow "${workflow.name}".`, verifyHref: "/app/workflows" })
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown run error"
         steps.push({ tool: "workflow.run", status: "needs_attention", summary: `Created workflow "${workflow.name}", but the run needs attention: ${reason}.` })
@@ -131,14 +143,14 @@ export async function executeAssistantPlan({
         body: action.body ?? action.description ?? message,
       })
 
-      steps.push({ tool: "support.createTicket", status: "completed", summary: `Created support ticket "${ticket.subject}".` })
+      steps.push({ tool: "support.createTicket", status: "completed", summary: `Created support ticket "${ticket.subject}".`, verifyHref: "/app/support" })
       continue
     }
 
     if (action.type === "create_report") {
       const report = await createReport(workspaceId, action.period ?? "weekly")
 
-      steps.push({ tool: "reports.create", status: "completed", summary: `Generated ${report.title}.` })
+      steps.push({ tool: "reports.create", status: "completed", summary: `Generated ${report.title}.`, verifyHref: "/app/reports" })
       continue
     }
 
@@ -148,7 +160,7 @@ export async function executeAssistantPlan({
       priority: "MEDIUM",
     })
 
-    steps.push({ tool: "tasks.create", status: "completed", summary: `Created task "${task.title}".` })
+    steps.push({ tool: "tasks.create", status: "completed", summary: `Created task "${task.title}".`, verifyHref: "/app/tasks" })
   }
 
   await db.activityLog.create({
