@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button"
 import { assistantSchema } from "@/lib/validation"
 
 const commandExamples = [
+  "Generate a marketing email about OpsPilot automating workflows, send it to customer@example.com, then update CRM and add a follow-up task",
   "/workflow when a client replies, update CRM, create a support ticket, create a follow-up task, and generate a weekly report",
-  "/email send a professional OpsPilot update to customer@example.com and create a CRM lead plus follow-up task",
-  "Create a lead, support ticket, task, and weekly report for customer@example.com",
+  "/email write a professional launch update for customer@example.com and create a CRM lead plus follow-up task",
 ]
 
 type Message = {

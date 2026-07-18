@@ -8,6 +8,7 @@ import { createTask, taskFromPrompt } from "@/lib/ops/tasks"
 import { createTicket } from "@/lib/ops/support"
 import { createReport } from "@/lib/ops/reports"
 import { sendWorkflowEmail } from "@/lib/email"
+import { assistantPlanSchema, fallbackAssistantPlan } from "@/lib/ops/assistant-planning"
 import type { WorkflowAction } from "@/lib/ops/rules"
 
 const aiApiKey = env.AI_API_KEY ?? env.HCNSEC_API_KEY ?? env.OPENAI_API_KEY
@@ -18,25 +19,6 @@ const client = aiApiKey
       baseURL: env.AI_API_BASE_URL,
     })
   : null
-
-const assistantActionSchema = z.object({
-  type: z.enum(["create_lead", "create_task", "create_ticket", "create_report", "create_workflow", "send_email"]),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  email: z.string().email().optional(),
-  name: z.string().optional(),
-  company: z.string().optional(),
-  subject: z.string().optional(),
-  body: z.string().optional(),
-  period: z.enum(["daily", "weekly"]).optional(),
-  prompt: z.string().optional(),
-  runNow: z.boolean().optional(),
-})
-
-const assistantPlanSchema = z.object({
-  actions: z.array(assistantActionSchema).min(1).max(8),
-  reply: z.string().min(1).max(900),
-})
 
 const workflowPlanSchema = z.object({
   actions: z
@@ -73,108 +55,6 @@ function extractJsonObject(text: string) {
   return text.slice(start, end + 1)
 }
 
-function extractEmail(text: string) {
-  return text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase()
-}
-
-function titleCaseFromEmail(email: string | undefined) {
-  if (!email) {
-    return undefined
-  }
-
-  return email
-    .split("@")[0]
-    .replace(/[._-]+/g, " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase())
-}
-
-function fallbackAssistantPlan(message: string): z.infer<typeof assistantPlanSchema> {
-  const lower = message.toLowerCase()
-  const email = extractEmail(message)
-  const name = titleCaseFromEmail(email)
-  const wantsWorkflow = lower.startsWith("/workflow") || lower.includes("workflow") || lower.includes("automation") || lower.includes("trigger")
-  const wantsEmail = lower.startsWith("/email") || lower.includes("send email") || lower.includes("send mail") || lower.includes("marketing email")
-  const wantsCrm = lower.includes("lead") || lower.includes("crm") || lower.includes("customer")
-  const wantsTask = lower.includes("task") || lower.includes("follow up") || lower.includes("todo")
-  const wantsTicket = lower.includes("ticket") || lower.includes("support") || lower.includes("client replied") || lower.includes("customer replied")
-  const wantsReport = lower.includes("report") || lower.includes("summary")
-
-  if (wantsWorkflow) {
-    return {
-      actions: [
-        {
-          type: "create_workflow",
-          title: "Assistant automation",
-          prompt: message.replace(/^\/workflow\s*/i, "").trim() || message,
-          email,
-          name,
-          runNow: lower.includes("run now") || lower.includes("send now") || wantsEmail,
-        },
-      ],
-      reply: "I will create an OpsPilot workflow from this command and run it now when the command includes an email/send intent.",
-    }
-  }
-
-  if (wantsEmail) {
-    return {
-      actions: [
-        {
-          type: "send_email",
-          email,
-          name,
-          subject: "A quick update from OpsPilot",
-          body: message.replace(/^\/email\s*/i, "").trim() || message,
-        },
-        ...(wantsCrm
-          ? [{ type: "create_lead" as const, name: name ?? "Email recipient", email, description: message }]
-          : []),
-        ...(wantsTask
-          ? [{ type: "create_task" as const, title: email ? `Follow up with ${email}` : "Follow up with customer", description: message }]
-          : []),
-      ],
-      reply: "I will prepare and send a customer-facing email, then update the requested internal records.",
-    }
-  }
-
-  if ([wantsCrm, wantsTask, wantsTicket, wantsReport].filter(Boolean).length > 1) {
-    return {
-      actions: [
-        ...(wantsCrm ? [{ type: "create_lead" as const, name: name ?? "Assistant customer", email, description: message }] : []),
-        ...(wantsTicket ? [{ type: "create_ticket" as const, subject: "Assistant-created support ticket", email, body: message }] : []),
-        ...(wantsTask ? [{ type: "create_task" as const, title: email ? `Follow up with ${email}` : "Follow up with customer", description: message }] : []),
-        ...(wantsReport ? [{ type: "create_report" as const, period: lower.includes("daily") ? "daily" as const : "weekly" as const }] : []),
-      ],
-      reply: "I will execute the requested internal actions across OpsPilot.",
-    }
-  }
-
-  if (lower.includes("lead") || lower.includes("crm")) {
-    return {
-      actions: [{ type: "create_lead", name: "New inbound lead", email: undefined, description: message }],
-      reply: "I will create a CRM lead and attach this request as context.",
-    }
-  }
-
-  if (lower.includes("ticket") || lower.includes("support")) {
-    return {
-      actions: [{ type: "create_ticket", subject: "Assistant-created support ticket", body: message }],
-      reply: "I will create and classify a support ticket.",
-    }
-  }
-
-  if (lower.includes("report")) {
-    return {
-      actions: [{ type: "create_report", period: lower.includes("daily") ? "daily" : "weekly" }],
-      reply: "I will generate an operations report.",
-    }
-  }
-
-  return {
-    actions: [{ type: "create_task", title: taskFromPrompt(message).title, description: message }],
-    reply: "I will create a task from this request.",
-  }
-}
-
 export async function generateAiText(system: string, prompt: string) {
   if (!client) {
     return null
@@ -199,11 +79,13 @@ async function generateAssistantPlan(message: string) {
       "Return only JSON. Do not include markdown.",
       "Allowed action types: create_lead, create_task, create_ticket, create_report, create_workflow, send_email.",
       "Understand slash commands like /workflow and /email, but normal natural language should work too.",
-      "For /workflow commands, create a create_workflow action. Use runNow true if the user asks to send/run now.",
-      "For email requests, use send_email and include recipient email, subject, and body when present.",
+      "Be typo tolerant: users may write meil, emsil, tsk, taks, tiker, makeketing, markering, or allothers.",
+      "For workflow commands and reply triggers, create a create_workflow action. Use runNow true only if the user asks to run/execute/send now.",
+      "For email requests, use send_email and include recipient email. Put the user's topic/request in body; the app will generate polished customer-facing copy.",
+      "If an email command asks to update CRM/tasks/support/reports or says update all/everything, add the matching internal actions after send_email.",
       "For customer reply/client reply triggers, prefer create_workflow with a support-ticket style trigger prompt.",
       "Never delete records. Do not invent external integrations. Keep missing emails empty.",
-      "Schema: {\"actions\":[{\"type\":\"create_workflow\",\"title\":\"...\",\"prompt\":\"...\",\"email\":\"customer@example.com\",\"runNow\":true}],\"reply\":\"...\"}",
+      "Schema: {\"actions\":[{\"type\":\"send_email\",\"email\":\"customer@example.com\",\"name\":\"Customer Name\",\"subject\":\"New from OpsPilot\",\"body\":\"topic to write about\"},{\"type\":\"create_lead\",\"email\":\"customer@example.com\"}],\"reply\":\"...\"}",
     ].join(" "),
     message
   )
@@ -345,7 +227,7 @@ export async function executeAssistantRequest(workspaceId: string, message: stri
 
       const generatedEmail = await generateWorkflowMarketingEmail({
         workflowName: action.subject ?? "OpsPilot assistant email",
-        prompt: action.body ?? action.description ?? message,
+        prompt: action.body ?? action.description ?? action.prompt ?? message,
         customerName: action.name,
         company: action.company,
       })
@@ -354,7 +236,7 @@ export async function executeAssistantRequest(workspaceId: string, message: stri
         to: action.email,
         workflowName: action.subject ?? "OpsPilot assistant email",
         subject: action.subject ?? generatedEmail.subject,
-        body: action.body && action.body.length > 40 ? action.body : generatedEmail.body,
+        body: generatedEmail.body,
       })
 
       completed.push(`sent email to ${action.email}`)
@@ -371,8 +253,13 @@ export async function executeAssistantRequest(workspaceId: string, message: stri
       })
 
       if (action.runNow) {
-        await runWorkflow(workspaceId, workflow.id)
-        completed.push(`created and ran workflow "${workflow.name}"`)
+        try {
+          await runWorkflow(workspaceId, workflow.id)
+          completed.push(`created and ran workflow "${workflow.name}"`)
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "unknown run error"
+          completed.push(`created workflow "${workflow.name}" but the run needs attention: ${reason}`)
+        }
       } else {
         completed.push(`created workflow "${workflow.name}"`)
       }
