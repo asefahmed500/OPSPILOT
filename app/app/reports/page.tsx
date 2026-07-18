@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
 import { DeleteResourceButton } from "@/components/app/delete-resource-button"
+import { BulkDeleteCheckbox, BulkDeleteProvider, BulkDeleteToolbar } from "@/components/app/bulk-delete"
 
 export default async function ReportsPage() {
   const user = await requireUser()
@@ -20,11 +21,16 @@ export default async function ReportsPage() {
       </div>
       <div className="op-panel p-5">
         <h2 className="font-semibold tracking-tight">Generated reports</h2>
+        <BulkDeleteProvider endpoint="/api/reports/bulk" label="reports">
+          <BulkDeleteToolbar />
         <div className="mt-4 space-y-3">
           {reports.map((report) => (
             <div key={report.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-start justify-between gap-3">
-                <p className="font-medium">{report.title}</p>
+                <div className="flex items-start gap-3">
+                  <BulkDeleteCheckbox id={report.id} label="report" />
+                  <p className="font-medium">{report.title}</p>
+                </div>
                 <DeleteResourceButton endpoint={`/api/reports/${report.id}`} label="report" />
               </div>
               <pre className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{report.body}</pre>
@@ -32,6 +38,7 @@ export default async function ReportsPage() {
           ))}
           {!reports.length ? <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No reports yet.</p> : null}
         </div>
+        </BulkDeleteProvider>
       </div>
     </div>
   )

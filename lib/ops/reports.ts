@@ -90,3 +90,31 @@ export async function deleteReport(workspaceId: string, reportId: string) {
 
   return { deleted: true }
 }
+
+export async function bulkDeleteReports(workspaceId: string, reportIds: string[]) {
+  const reports = await db.report.findMany({
+    where: { workspaceId, id: { in: reportIds } },
+    select: { id: true },
+  })
+
+  if (!reports.length) {
+    return { deleted: 0 }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.report.deleteMany({
+      where: { workspaceId, id: { in: reports.map((report) => report.id) } },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "report.bulk_deleted",
+        message: `Deleted ${reports.length} report${reports.length === 1 ? "" : "s"}`,
+        metadata: { reportIds: reports.map((report) => report.id) },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: reports.length }
+}

@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
 import { DeleteResourceButton } from "@/components/app/delete-resource-button"
+import { BulkDeleteCheckbox, BulkDeleteProvider, BulkDeleteToolbar } from "@/components/app/bulk-delete"
 
 export default async function CrmPage() {
   const user = await requireUser()
@@ -20,13 +21,18 @@ export default async function CrmPage() {
       </div>
       <div className="op-panel p-5">
         <h2 className="font-semibold tracking-tight">Leads</h2>
+        <BulkDeleteProvider endpoint="/api/crm/leads/bulk" label="leads">
+          <BulkDeleteToolbar />
         <div className="mt-4 space-y-3">
           {leads.map((lead) => (
             <div key={lead.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{lead.name}</p>
-                  <p className="text-sm text-slate-500">{lead.email} {lead.company ? `- ${lead.company.name}` : ""}</p>
+                <div className="flex items-start gap-3">
+                  <BulkDeleteCheckbox id={lead.id} label="lead" />
+                  <div>
+                    <p className="font-medium">{lead.name}</p>
+                    <p className="text-sm text-slate-500">{lead.email} {lead.company ? `- ${lead.company.name}` : ""}</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-medium">Score {lead.score}</span>
@@ -39,6 +45,7 @@ export default async function CrmPage() {
           ))}
           {!leads.length ? <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No leads yet.</p> : null}
         </div>
+        </BulkDeleteProvider>
       </div>
     </div>
   )

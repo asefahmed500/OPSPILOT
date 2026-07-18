@@ -71,3 +71,31 @@ export async function deleteTask(workspaceId: string, taskId: string) {
 
   return { deleted: true }
 }
+
+export async function bulkDeleteTasks(workspaceId: string, taskIds: string[]) {
+  const tasks = await db.task.findMany({
+    where: { workspaceId, id: { in: taskIds } },
+    select: { id: true },
+  })
+
+  if (!tasks.length) {
+    return { deleted: 0 }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.task.deleteMany({
+      where: { workspaceId, id: { in: tasks.map((task) => task.id) } },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "task.bulk_deleted",
+        message: `Deleted ${tasks.length} task${tasks.length === 1 ? "" : "s"}`,
+        metadata: { taskIds: tasks.map((task) => task.id) },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: tasks.length }
+}

@@ -112,3 +112,31 @@ export async function deleteLead(workspaceId: string, leadId: string) {
 
   return { deleted: true }
 }
+
+export async function bulkDeleteLeads(workspaceId: string, leadIds: string[]) {
+  const leads = await db.lead.findMany({
+    where: { workspaceId, id: { in: leadIds } },
+    select: { id: true },
+  })
+
+  if (!leads.length) {
+    return { deleted: 0 }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.lead.deleteMany({
+      where: { workspaceId, id: { in: leads.map((lead) => lead.id) } },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "lead.bulk_deleted",
+        message: `Deleted ${leads.length} lead${leads.length === 1 ? "" : "s"}`,
+        metadata: { leadIds: leads.map((lead) => lead.id) },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: leads.length }
+}

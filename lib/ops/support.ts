@@ -284,6 +284,34 @@ export async function deleteTicket(workspaceId: string, ticketId: string) {
   return { deleted: true }
 }
 
+export async function bulkDeleteTickets(workspaceId: string, ticketIds: string[]) {
+  const tickets = await db.ticket.findMany({
+    where: { workspaceId, id: { in: ticketIds } },
+    select: { id: true },
+  })
+
+  if (!tickets.length) {
+    return { deleted: 0 }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.ticket.deleteMany({
+      where: { workspaceId, id: { in: tickets.map((ticket) => ticket.id) } },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "ticket.bulk_deleted",
+        message: `Deleted ${tickets.length} ticket${tickets.length === 1 ? "" : "s"}`,
+        metadata: { ticketIds: tickets.map((ticket) => ticket.id) },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: tickets.length }
+}
+
 function normalizeSubject(subject: string) {
   return subject.toLowerCase().replace(/^(re|fw|fwd):\s*/i, "").trim()
 }

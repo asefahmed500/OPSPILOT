@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { RunWorkflowButton } from "@/components/app/run-workflow-button"
 import Link from "next/link"
 import { DeleteResourceButton } from "@/components/app/delete-resource-button"
+import { BulkDeleteCheckbox, BulkDeleteProvider, BulkDeleteToolbar } from "@/components/app/bulk-delete"
 
 function workflowOutputValue(
   output: unknown,
@@ -44,13 +45,18 @@ export default async function WorkflowsPage() {
       </div>
       <div className="op-panel p-5">
         <h2 className="font-semibold tracking-tight">Automation library</h2>
+        <BulkDeleteProvider endpoint="/api/workflows/bulk" label="workflows">
+          <BulkDeleteToolbar />
         <div className="mt-4 space-y-3">
           {workflows.map((workflow) => (
             <div key={workflow.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{workflow.name}</p>
-                  <p className="text-sm text-slate-500">{workflow.trigger}</p>
+                <div className="flex items-start gap-3">
+                  <BulkDeleteCheckbox id={workflow.id} label="workflow" />
+                  <div>
+                    <p className="font-medium">{workflow.name}</p>
+                    <p className="text-sm text-slate-500">{workflow.trigger}</p>
+                  </div>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   <RunWorkflowButton workflowId={workflow.id} />
@@ -95,6 +101,7 @@ export default async function WorkflowsPage() {
           ))}
           {!workflows.length ? <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No workflows yet.</p> : null}
         </div>
+        </BulkDeleteProvider>
       </div>
     </div>
   )

@@ -84,3 +84,7 @@ export const smtpTestSchema = z.object({
 export const assistantSchema = z.object({
   message: text("Ask OpsPilot something", 2000),
 })
+
+export const bulkDeleteSchema = z.object({
+  ids: z.array(z.string().trim().min(1)).min(1, "Select at least one item").max(100, "Delete up to 100 items at a time"),
+})

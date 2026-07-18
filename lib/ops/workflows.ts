@@ -96,6 +96,34 @@ export async function deleteWorkflow(workspaceId: string, workflowId: string) {
   })
 }
 
+export async function bulkDeleteWorkflows(workspaceId: string, workflowIds: string[]) {
+  const workflows = await db.workflow.findMany({
+    where: { workspaceId, id: { in: workflowIds } },
+    select: { id: true },
+  })
+
+  if (!workflows.length) {
+    return { deleted: 0 }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.workflow.deleteMany({
+      where: { workspaceId, id: { in: workflows.map((workflow) => workflow.id) } },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "workflow.bulk_deleted",
+        message: `Deleted ${workflows.length} workflow${workflows.length === 1 ? "" : "s"}`,
+        metadata: { workflowIds: workflows.map((workflow) => workflow.id) },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: workflows.length }
+}
+
 export async function runWorkflow(workspaceId: string, workflowId: string) {
   const workflow = await db.workflow.findFirst({
     where: { id: workflowId, workspaceId },

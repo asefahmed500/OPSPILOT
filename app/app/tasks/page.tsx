@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
 import { DeleteResourceButton } from "@/components/app/delete-resource-button"
+import { BulkDeleteCheckbox, BulkDeleteProvider, BulkDeleteToolbar } from "@/components/app/bulk-delete"
 
 export default async function TasksPage() {
   const user = await requireUser()
@@ -20,11 +21,16 @@ export default async function TasksPage() {
       </div>
       <div className="op-panel p-5">
         <h2 className="font-semibold tracking-tight">Task board</h2>
+        <BulkDeleteProvider endpoint="/api/tasks/bulk" label="tasks">
+          <BulkDeleteToolbar />
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {tasks.map((task) => (
             <div key={task.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="font-medium">{task.title}</p>
+                <div className="flex items-center gap-3">
+                  <BulkDeleteCheckbox id={task.id} label="task" />
+                  <p className="font-medium">{task.title}</p>
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium">{task.priority}</span>
                   <DeleteResourceButton endpoint={`/api/tasks/${task.id}`} label="task" />
@@ -36,6 +42,7 @@ export default async function TasksPage() {
           ))}
           {!tasks.length ? <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No tasks yet.</p> : null}
         </div>
+        </BulkDeleteProvider>
       </div>
     </div>
   )
