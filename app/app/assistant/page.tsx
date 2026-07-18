@@ -35,11 +35,13 @@ const promptFormula = [
 export default async function AssistantPage() {
   const user = await requireUser()
   const workspace = await requireWorkspace(user.id)
-  const conversation = await db.conversation.findFirst({
+  const conversations = await db.conversation.findMany({
     where: { userId: user.id, workspaceId: workspace.id },
     orderBy: { updatedAt: "desc" },
-    include: { messages: { orderBy: { createdAt: "asc" }, take: 12 } },
+    include: { messages: { orderBy: { createdAt: "asc" }, take: 30 } },
+    take: 20,
   })
+  const conversation = conversations[0]
 
   return (
     <div className="space-y-6">
@@ -63,6 +65,16 @@ export default async function AssistantPage() {
             role: message.role,
             content: message.content,
             action: message.action,
+          }))}
+          initialConversations={conversations.map((item) => ({
+            id: item.id,
+            title: item.title,
+            updatedAt: item.updatedAt.toISOString(),
+            messages: item.messages.map((message) => ({
+              role: message.role,
+              content: message.content,
+              action: message.action,
+            })),
           }))}
         />
 

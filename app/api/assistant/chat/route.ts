@@ -10,6 +10,10 @@ const chatSchema = assistantSchema.extend({
   conversationId: z.string().optional(),
 })
 
+const deleteConversationSchema = z.object({
+  conversationId: z.string().min(1),
+})
+
 export async function GET() {
   try {
     const { user, workspace } = await requireRequestContext()
@@ -76,6 +80,28 @@ export async function POST(request: Request) {
       conversationId: conversation.id,
       message: assistantMessage,
     })
+  } catch (error) {
+    return jsonError(error)
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    requireSameOrigin(request)
+    const { user, workspace } = await requireRequestContext()
+    const input = deleteConversationSchema.parse(await request.json())
+    const conversation = await db.conversation.findFirst({
+      where: { id: input.conversationId, userId: user.id, workspaceId: workspace.id },
+      select: { id: true },
+    })
+
+    if (!conversation) {
+      return jsonError(new AppError("Conversation not found", 404, "CONVERSATION_NOT_FOUND"))
+    }
+
+    await db.conversation.delete({ where: { id: conversation.id } })
+
+    return Response.json({ deleted: true })
   } catch (error) {
     return jsonError(error)
   }
