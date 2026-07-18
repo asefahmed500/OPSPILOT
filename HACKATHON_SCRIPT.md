@@ -15,6 +15,7 @@ In this demo, I will show a real authenticated workspace. The AI assistant will 
 - Start the app: `npm run dev`
 - Open: `http://localhost:3000`
 - Create or log into an account.
+- Keep [docs/AI_AGENT_SYSTEM.md](docs/AI_AGENT_SYSTEM.md) open if judges ask how the agent, tools, database, and audit trail work.
 - Confirm database is connected with `DATABASE_URL`.
 - Confirm AI provider is configured:
   - `AI_API_BASE_URL=https://api.hcnsec.cn/v1`

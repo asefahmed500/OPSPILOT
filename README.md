@@ -61,6 +61,8 @@ npm run ai:check
 
 Use [HACKATHON_SCRIPT.md](HACKATHON_SCRIPT.md) for the pitch, live demo prompts, expected system changes, and backup lines if a local email provider blocks delivery.
 
+For system architecture, agent flow, tool execution, and Mermaid diagrams, see [docs/AI_AGENT_SYSTEM.md](docs/AI_AGENT_SYSTEM.md).
+
 ## MVP Coverage
 
 - Public landing page
