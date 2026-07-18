@@ -7,6 +7,12 @@ import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { assistantSchema } from "@/lib/validation"
 
+const commandExamples = [
+  "/workflow when a client replies, update CRM, create a support ticket, create a follow-up task, and generate a weekly report",
+  "/email send a professional OpsPilot update to customer@example.com and create a CRM lead plus follow-up task",
+  "Create a lead, support ticket, task, and weekly report for customer@example.com",
+]
+
 type Message = {
   role: string
   content: string
@@ -27,6 +33,7 @@ export function AssistantChat({
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<z.input<typeof assistantSchema>>({
     resolver: zodResolver(assistantSchema),
@@ -65,7 +72,7 @@ export function AssistantChat({
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/70 px-5 py-3">
         <div>
           <p className="text-sm font-semibold">OpsPilot command chat</p>
-          <p className="text-xs text-slate-500">Creates safe internal actions from natural language.</p>
+          <p className="text-xs text-slate-500">Runs safe CRM, task, support, report, email, and workflow actions from natural language.</p>
         </div>
       </div>
       <div className="h-[min(58dvh,520px)] min-h-[360px] space-y-3 overflow-y-auto p-5">
@@ -78,11 +85,23 @@ export function AssistantChat({
           ))
         ) : (
           <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">
-            Try creating follow-up tasks for inactive customers or generate a weekly operations report.
+            Try an operations command or use one of the quick prompts below.
           </div>
         )}
       </div>
       <form onSubmit={handleSubmit(onSubmit)} className="border-t border-slate-200 p-4">
+        <div className="mb-3 flex flex-wrap gap-2">
+          {commandExamples.map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => setValue("message", example, { shouldDirty: true, shouldValidate: true })}
+              className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              {example}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input {...register("message")} className="op-field min-w-0 flex-1" placeholder="Ask OpsPilot..." />
           <Button type="submit" disabled={loading}>{loading ? "Sending" : "Send"}</Button>

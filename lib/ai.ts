@@ -7,6 +7,7 @@ import { createLead } from "@/lib/ops/lead"
 import { createTask, taskFromPrompt } from "@/lib/ops/tasks"
 import { createTicket } from "@/lib/ops/support"
 import { createReport } from "@/lib/ops/reports"
+import { sendWorkflowEmail } from "@/lib/email"
 import type { WorkflowAction } from "@/lib/ops/rules"
 
 const aiApiKey = env.AI_API_KEY ?? env.HCNSEC_API_KEY ?? env.OPENAI_API_KEY
@@ -19,19 +20,22 @@ const client = aiApiKey
   : null
 
 const assistantActionSchema = z.object({
-  type: z.enum(["create_lead", "create_task", "create_ticket", "create_report"]),
+  type: z.enum(["create_lead", "create_task", "create_ticket", "create_report", "create_workflow", "send_email"]),
   title: z.string().optional(),
   description: z.string().optional(),
   email: z.string().email().optional(),
   name: z.string().optional(),
+  company: z.string().optional(),
   subject: z.string().optional(),
   body: z.string().optional(),
   period: z.enum(["daily", "weekly"]).optional(),
+  prompt: z.string().optional(),
+  runNow: z.boolean().optional(),
 })
 
 const assistantPlanSchema = z.object({
-  actions: z.array(assistantActionSchema).min(1).max(4),
-  reply: z.string().min(1).max(600),
+  actions: z.array(assistantActionSchema).min(1).max(8),
+  reply: z.string().min(1).max(900),
 })
 
 const workflowPlanSchema = z.object({
@@ -69,8 +73,80 @@ function extractJsonObject(text: string) {
   return text.slice(start, end + 1)
 }
 
+function extractEmail(text: string) {
+  return text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase()
+}
+
+function titleCaseFromEmail(email: string | undefined) {
+  if (!email) {
+    return undefined
+  }
+
+  return email
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
 function fallbackAssistantPlan(message: string): z.infer<typeof assistantPlanSchema> {
   const lower = message.toLowerCase()
+  const email = extractEmail(message)
+  const name = titleCaseFromEmail(email)
+  const wantsWorkflow = lower.startsWith("/workflow") || lower.includes("workflow") || lower.includes("automation") || lower.includes("trigger")
+  const wantsEmail = lower.startsWith("/email") || lower.includes("send email") || lower.includes("send mail") || lower.includes("marketing email")
+  const wantsCrm = lower.includes("lead") || lower.includes("crm") || lower.includes("customer")
+  const wantsTask = lower.includes("task") || lower.includes("follow up") || lower.includes("todo")
+  const wantsTicket = lower.includes("ticket") || lower.includes("support") || lower.includes("client replied") || lower.includes("customer replied")
+  const wantsReport = lower.includes("report") || lower.includes("summary")
+
+  if (wantsWorkflow) {
+    return {
+      actions: [
+        {
+          type: "create_workflow",
+          title: "Assistant automation",
+          prompt: message.replace(/^\/workflow\s*/i, "").trim() || message,
+          email,
+          name,
+          runNow: lower.includes("run now") || lower.includes("send now") || wantsEmail,
+        },
+      ],
+      reply: "I will create an OpsPilot workflow from this command and run it now when the command includes an email/send intent.",
+    }
+  }
+
+  if (wantsEmail) {
+    return {
+      actions: [
+        {
+          type: "send_email",
+          email,
+          name,
+          subject: "A quick update from OpsPilot",
+          body: message.replace(/^\/email\s*/i, "").trim() || message,
+        },
+        ...(wantsCrm
+          ? [{ type: "create_lead" as const, name: name ?? "Email recipient", email, description: message }]
+          : []),
+        ...(wantsTask
+          ? [{ type: "create_task" as const, title: email ? `Follow up with ${email}` : "Follow up with customer", description: message }]
+          : []),
+      ],
+      reply: "I will prepare and send a customer-facing email, then update the requested internal records.",
+    }
+  }
+
+  if ([wantsCrm, wantsTask, wantsTicket, wantsReport].filter(Boolean).length > 1) {
+    return {
+      actions: [
+        ...(wantsCrm ? [{ type: "create_lead" as const, name: name ?? "Assistant customer", email, description: message }] : []),
+        ...(wantsTicket ? [{ type: "create_ticket" as const, subject: "Assistant-created support ticket", email, body: message }] : []),
+        ...(wantsTask ? [{ type: "create_task" as const, title: email ? `Follow up with ${email}` : "Follow up with customer", description: message }] : []),
+        ...(wantsReport ? [{ type: "create_report" as const, period: lower.includes("daily") ? "daily" as const : "weekly" as const }] : []),
+      ],
+      reply: "I will execute the requested internal actions across OpsPilot.",
+    }
+  }
 
   if (lower.includes("lead") || lower.includes("crm")) {
     return {
@@ -121,9 +197,13 @@ async function generateAssistantPlan(message: string) {
     [
       "You are OpsPilot's safe internal automation planner.",
       "Return only JSON. Do not include markdown.",
-      "Allowed action types: create_lead, create_task, create_ticket, create_report.",
-      "Do not invent external integrations. Keep missing emails empty.",
-      "Schema: {\"actions\":[{\"type\":\"create_task\",\"title\":\"...\",\"description\":\"...\"}],\"reply\":\"...\"}",
+      "Allowed action types: create_lead, create_task, create_ticket, create_report, create_workflow, send_email.",
+      "Understand slash commands like /workflow and /email, but normal natural language should work too.",
+      "For /workflow commands, create a create_workflow action. Use runNow true if the user asks to send/run now.",
+      "For email requests, use send_email and include recipient email, subject, and body when present.",
+      "For customer reply/client reply triggers, prefer create_workflow with a support-ticket style trigger prompt.",
+      "Never delete records. Do not invent external integrations. Keep missing emails empty.",
+      "Schema: {\"actions\":[{\"type\":\"create_workflow\",\"title\":\"...\",\"prompt\":\"...\",\"email\":\"customer@example.com\",\"runNow\":true}],\"reply\":\"...\"}",
     ].join(" "),
     message
   )
@@ -248,11 +328,55 @@ export async function executeAssistantRequest(workspaceId: string, message: stri
       const lead = await createLead(workspaceId, {
         name: action.name ?? action.title ?? "New inbound lead",
         email: action.email ?? `lead-${messageHash}@example.com`,
+        company: action.company,
         source: "AI Assistant",
         notes: action.description ?? message,
       })
 
       completed.push(`created CRM lead "${lead.name}"`)
+      continue
+    }
+
+    if (action.type === "send_email") {
+      if (!action.email) {
+        completed.push("skipped email because no recipient email was provided")
+        continue
+      }
+
+      const generatedEmail = await generateWorkflowMarketingEmail({
+        workflowName: action.subject ?? "OpsPilot assistant email",
+        prompt: action.body ?? action.description ?? message,
+        customerName: action.name,
+        company: action.company,
+      })
+
+      await sendWorkflowEmail({
+        to: action.email,
+        workflowName: action.subject ?? "OpsPilot assistant email",
+        subject: action.subject ?? generatedEmail.subject,
+        body: action.body && action.body.length > 40 ? action.body : generatedEmail.body,
+      })
+
+      completed.push(`sent email to ${action.email}`)
+      continue
+    }
+
+    if (action.type === "create_workflow") {
+      const { createWorkflow, runWorkflow } = await import("@/lib/ops/workflows")
+      const workflowPrompt = action.prompt ?? action.description ?? message
+      const workflow = await createWorkflow(workspaceId, workflowPrompt, action.title ?? "Assistant workflow", {
+        customerEmail: action.email,
+        customerName: action.name,
+        company: action.company,
+      })
+
+      if (action.runNow) {
+        await runWorkflow(workspaceId, workflow.id)
+        completed.push(`created and ran workflow "${workflow.name}"`)
+      } else {
+        completed.push(`created workflow "${workflow.name}"`)
+      }
+
       continue
     }
 
