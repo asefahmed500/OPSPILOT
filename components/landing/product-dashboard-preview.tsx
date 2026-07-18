@@ -28,7 +28,7 @@ const activities = [
   "Support draft prepared",
 ]
 
-export function MockDashboard() {
+export function ProductDashboardPreview() {
   const shouldReduceMotion = useReducedMotion()
   const pointerX = useMotionValue(0)
   const pointerY = useMotionValue(0)

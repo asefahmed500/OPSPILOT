@@ -100,8 +100,8 @@ async function generateAssistantPlan(message: string) {
       "For email requests, use send_email and include recipient email. Put the user's topic/request in body; the app will generate polished customer-facing copy.",
       "If an email command asks to update CRM/tasks/support/reports or says update all/everything, add the matching internal actions after send_email.",
       "For customer reply/client reply triggers, prefer create_workflow with a support-ticket style trigger prompt.",
-      "Never delete records. Do not invent external integrations. Keep missing emails empty.",
-      "Schema: {\"actions\":[{\"type\":\"send_email\",\"email\":\"customer@example.com\",\"name\":\"Customer Name\",\"subject\":\"New from OpsPilot\",\"body\":\"topic to write about\"},{\"type\":\"create_lead\",\"email\":\"customer@example.com\"}],\"reply\":\"...\"}",
+      "Never delete records. Do not invent external integrations. Never invent placeholder customer emails; use only emails present in the user message and keep missing emails empty.",
+      "Schema: {\"actions\":[{\"type\":\"send_email\",\"name\":\"Customer Name\",\"subject\":\"New from OpsPilot\",\"body\":\"topic to write about\"}],\"reply\":\"...\"}",
     ].join(" "),
     message
   )
@@ -132,7 +132,7 @@ export async function generateWorkflowActions(prompt: string): Promise<WorkflowA
       "Allowed action types: create_crm_record, assign_owner, send_email, create_task, create_ticket, notify_team.",
       "Extract customer emails, names, company, task titles, email subject/body when present.",
       "Email actions must include the customer recipient email when the prompt contains one.",
-      "Schema: {\"actions\":[{\"type\":\"send_email\",\"label\":\"Send email\",\"email\":\"customer@example.com\",\"subject\":\"...\",\"body\":\"...\"}]}",
+      "Never invent placeholder customer emails. Schema: {\"actions\":[{\"type\":\"send_email\",\"label\":\"Send email\",\"subject\":\"...\",\"body\":\"...\"}]}",
     ].join(" "),
     prompt
   )

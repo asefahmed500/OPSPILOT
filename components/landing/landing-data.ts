@@ -74,7 +74,7 @@ export const solutionCards = [
 export const architectureNodes = ["Frontend", "API Gateway", "Agent Orchestrator", "GPT Model", "Tool Execution", "Monitoring"]
 
 export const pricingPlans = [
-  ["Free", "$0", "Explore assistant, CRM, and task basics.", ["AI assistant", "CRM demo", "Task tracking"]],
+  ["Free", "$0", "Explore assistant, CRM, and task basics.", ["AI assistant", "CRM workspace", "Task tracking"]],
   ["Pro", "$49", "Run the complete MVP operating loop.", ["Support triage", "Workflow builder", "Reports dashboard"]],
   ["Enterprise", "Custom", "Connect real systems and governance.", ["Custom adapters", "Audit controls", "Priority support"]],
 ] satisfies [string, string, string, string[]][]

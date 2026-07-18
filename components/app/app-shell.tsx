@@ -28,7 +28,7 @@ export function AppShell({
         <AppBrand />
         <DesktopNav />
         <div className="absolute bottom-4 left-4 right-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-          Internal actions are live. External adapters are running in mock mode.
+          Internal CRM, support, tasks, workflows, reports, AI, and email actions use your workspace configuration.
         </div>
       </aside>
 

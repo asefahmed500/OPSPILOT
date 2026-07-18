@@ -6,6 +6,7 @@ import { jsonError, requireSameOrigin } from "@/lib/api"
 import { registerSchema } from "@/lib/validation"
 import { assertRateLimit, getClientKey } from "@/lib/rate-limit"
 import { AppError } from "@/lib/errors"
+import { env } from "@/lib/env"
 
 export async function POST(request: Request) {
   try {
@@ -38,9 +39,12 @@ export async function POST(request: Request) {
                 integrations: {
                   createMany: {
                     data: [
-                      { provider: "mock-crm", status: "mock" },
-                      { provider: "mock-slack", status: "mock" },
-                      { provider: "smtp-email", status: "mock" },
+                      { provider: "internal-crm", status: "connected" },
+                      { provider: "internal-support", status: "connected" },
+                      { provider: "internal-tasks", status: "connected" },
+                      { provider: "smtp-email", status: env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS && env.SMTP_FROM ? "configured" : "not_configured" },
+                      { provider: "ai-provider", status: env.AI_API_KEY || env.HCNSEC_API_KEY || env.OPENAI_API_KEY ? "configured" : "not_configured" },
+                      { provider: "inbound-email", status: env.INBOUND_EMAIL_WEBHOOK_SECRET || (env.IMAP_USER && env.IMAP_PASS) ? "configured" : "not_configured" },
                     ],
                   },
                 },

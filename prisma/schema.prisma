@@ -333,7 +333,7 @@ model AutomationRunStep {
 model IntegrationAccount {
   id          String    @id @default(cuid())
   provider    String
-  status      String    @default("mock")
+  status      String    @default("not_configured")
   config      Json?
   workspaceId String
   createdAt   DateTime  @default(now())

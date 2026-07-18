@@ -37,7 +37,7 @@ const schemas = {
 const fields: Record<FormKind, Field[]> = {
   lead: [
     { name: "name", label: "Lead name", placeholder: "Lead name" },
-    { name: "email", label: "Email", type: "email", placeholder: "lead@company.com" },
+    { name: "email", label: "Email", type: "email", placeholder: "Lead email address" },
     { name: "company", label: "Company", placeholder: "Company" },
     { name: "source", label: "Source", placeholder: "Website" },
     { name: "notes", label: "Notes", type: "textarea", placeholder: "Notes" },
@@ -59,7 +59,7 @@ const fields: Record<FormKind, Field[]> = {
   ],
   ticket: [
     { name: "subject", label: "Subject", placeholder: "Subject" },
-    { name: "customerEmail", label: "Customer email", type: "email", placeholder: "customer@example.com" },
+    { name: "customerEmail", label: "Customer email", type: "email", placeholder: "Customer email address" },
     {
       name: "channel",
       label: "Channel",
@@ -75,14 +75,14 @@ const fields: Record<FormKind, Field[]> = {
   ],
   workflow: [
     { name: "name", label: "Workflow name", placeholder: "Workflow name" },
-    { name: "customerEmail", label: "Customer email", type: "email", placeholder: "customer@example.com" },
+    { name: "customerEmail", label: "Customer email", type: "email", placeholder: "Customer email address" },
     { name: "customerName", label: "Customer name", placeholder: "Customer name" },
     { name: "company", label: "Company", placeholder: "Company" },
     {
       name: "prompt",
       label: "Workflow prompt",
       type: "textarea",
-      placeholder: "When a new lead arrives, create CRM record, assign sales rep, send welcome email, create follow-up task.",
+      placeholder: "Describe the real trigger, customer data, and actions OpsPilot should run.",
     },
   ],
   report: [
@@ -97,7 +97,7 @@ const fields: Record<FormKind, Field[]> = {
     },
   ],
   smtp: [
-    { name: "to", label: "Send test to", type: "email", placeholder: "name@example.com" },
+    { name: "to", label: "Send test to", type: "email", placeholder: "Recipient email address" },
   ],
 }
 

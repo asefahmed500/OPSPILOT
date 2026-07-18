@@ -5,10 +5,10 @@ import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion
 import { ArrowRight, CheckCircle2, ClipboardList, Database, Headphones, Sparkles, Workflow, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CursorTarget, fadeInUp, GlassPanel, Magnetic } from "@/components/landing/landing-motion"
-import { MockDashboard } from "@/components/landing/mock-dashboard"
+import { ProductDashboardPreview } from "@/components/landing/product-dashboard-preview"
 
 const floatingCards = [
-  { title: "CRM lead", body: "Score 92 - demo ready", icon: Database, className: "left-0 top-16 hidden -rotate-6 lg:block" },
+  { title: "CRM lead", body: "Score 92 - ready for outreach", icon: Database, className: "left-0 top-16 hidden -rotate-6 lg:block" },
   { title: "Support draft", body: "Billing reply prepared", icon: Headphones, className: "right-0 top-20 hidden rotate-6 lg:block" },
   { title: "Task created", body: "Follow up today", icon: ClipboardList, className: "bottom-24 left-10 hidden rotate-3 xl:block" },
   { title: "Workflow run", body: "4 actions completed", icon: Workflow, className: "bottom-28 right-12 hidden -rotate-3 xl:block" },
@@ -86,7 +86,7 @@ export function HeroSection() {
             </Magnetic>
           </motion.div>
           <motion.div {...fadeInUp(0.75)} className="mt-6 flex flex-wrap justify-center gap-2 text-xs font-medium text-[#5a5a5a]">
-            {["Safe internal actions", "Mock integrations", "Human review"].map((item) => (
+            {["Safe internal actions", "Configured integrations", "Human review"].map((item) => (
               <span key={item} className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/60 px-3 py-1 backdrop-blur">
                 <CheckCircle2 className="size-3.5 text-[#16a34a]" />
                 {item}
@@ -96,7 +96,7 @@ export function HeroSection() {
         </div>
 
         <div className="pointer-events-none absolute left-1/2 top-36 z-0 hidden size-[560px] -translate-x-1/2 rounded-full border border-[#2c67f2]/10 bg-[#2c67f2]/5 blur-3xl lg:block" />
-        <MockDashboard />
+        <ProductDashboardPreview />
       </motion.div>
     </section>
   )

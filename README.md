@@ -1,6 +1,6 @@
 # OpsPilot AI
 
-Hackathon-ready AI operations MVP for CRM automation, support triage, task generation, workflow building, reports, and mock integrations.
+Hackathon-ready AI operations MVP for CRM automation, support triage, task generation, workflow building, reports, and configurable integrations.
 
 ## Stack
 
@@ -24,9 +24,9 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
-SMTP_USER="you@example.com"
+SMTP_USER="your-smtp-user"
 SMTP_PASS="app-password"
-SMTP_FROM="opspilot <you@example.com>"
+SMTP_FROM="opspilot <your-sender-address>"
 AI_API_BASE_URL="https://api.hcnsec.cn/v1"
 AI_API_KEY=""
 HCNSEC_API_KEY=""

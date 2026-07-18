@@ -27,7 +27,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     formState: { errors, isSubmitting },
   } = useForm<AuthValues>({
     resolver: zodResolver(schema) as Resolver<AuthValues>,
-    defaultValues: mode === "register" ? { workspaceName: "OpsPilot Workspace" } : undefined,
   })
 
   async function onSubmit(values: AuthValues) {
@@ -44,7 +43,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           name: "name" in parsed ? parsed.name : "",
           email,
           password,
-          workspaceName: "workspaceName" in parsed ? parsed.workspaceName : "OpsPilot Workspace",
+          workspaceName: "workspaceName" in parsed ? parsed.workspaceName : "",
         }),
       })
 

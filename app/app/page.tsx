@@ -24,10 +24,10 @@ export default async function DashboardPage() {
       </div>
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Automated Tasks", `${metrics.automatedTasks}%`],
-          ["CRM Accuracy", `${metrics.crmAccuracy}%`],
-          ["Response Time", metrics.responseTime],
-          ["Weekly Time Saved", `${metrics.timeSaved}+ hrs`],
+          ["CRM Leads", metrics.leads],
+          ["Open Tasks", metrics.tasks - metrics.doneTasks],
+          ["Support Tickets", metrics.tickets],
+          ["Workflow Runs", metrics.workflowRuns],
         ].map(([label, value]) => (
           <div key={label} className="op-panel p-5">
             <p className="text-sm font-medium text-slate-500">{label}</p>
@@ -48,12 +48,13 @@ export default async function DashboardPage() {
           </div>
         </div>
         <div className="rounded-lg bg-slate-950 p-5 text-white shadow-sm">
-          <h2 className="font-semibold tracking-tight">MVP coverage</h2>
+          <h2 className="font-semibold tracking-tight">Workspace data</h2>
           <div className="mt-4 space-y-3 text-sm text-white/70">
             <p>{leads} CRM leads</p>
             <p>{tasks} tasks tracked</p>
             <p>{tickets} support tickets classified</p>
             <p>{metrics.taskCompletion}% task completion</p>
+            <p>{metrics.workflowSuccessRate}% workflow success rate</p>
           </div>
         </div>
       </div>

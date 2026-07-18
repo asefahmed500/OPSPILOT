@@ -209,10 +209,19 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
     return skippedRun
   }
 
-  const createdLead = executableActions.some((action) => action.type === "create_crm_record")
+  const shouldCreateLead = executableActions.some((action) => action.type === "create_crm_record")
+  if (shouldCreateLead && !customerEmail) {
+    steps.push({
+      tool: "crm.createLead",
+      status: "SKIPPED",
+      summary: "CRM lead was not created because a real customer email is required.",
+    })
+  }
+
+  const createdLead = shouldCreateLead && customerEmail
     ? await createLead(workspaceId, {
         name: customerName,
-        email: customerEmail ?? `workflow-${workflow.id}@example.com`,
+        email: customerEmail,
         company: customerAction?.company,
         source: "Workflow",
         notes: workflow.prompt,
@@ -228,10 +237,18 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
   }
 
   const ticketAction = executableActions.find((action) => action.type === "create_ticket")
-  const createdTicket = ticketAction
+  if (ticketAction && !customerEmail) {
+    steps.push({
+      tool: "support.createTicket",
+      status: "SKIPPED",
+      summary: "Support ticket was not created because a real customer email is required.",
+    })
+  }
+
+  const createdTicket = ticketAction && customerEmail
     ? await createTicket(workspaceId, {
         subject: ticketAction.subject ?? `Workflow ticket: ${workflow.name}`,
-        customerEmail: ticketAction.email ?? customerEmail ?? `workflow-${workflow.id}@example.com`,
+        customerEmail: ticketAction.email ?? customerEmail,
         customerName,
         body: ticketAction.body ?? ticketAction.description ?? workflow.prompt,
       })

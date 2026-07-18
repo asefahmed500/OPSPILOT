@@ -49,7 +49,7 @@ export function InboundEmailForm() {
       <div className="mt-4 grid gap-3">
         <label className="op-label">
           From
-          <input value={from} onChange={(event) => setFrom(event.target.value)} type="email" placeholder="customer@example.com" className="op-field" />
+          <input value={from} onChange={(event) => setFrom(event.target.value)} type="email" placeholder="Customer sender email" className="op-field" />
         </label>
         <label className="op-label">
           Subject

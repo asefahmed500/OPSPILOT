@@ -3,12 +3,17 @@ import { db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
 export async function buildWorkspaceMetrics(workspaceId: string) {
-  const [tasks, doneTasks, leads, tickets, escalatedTickets, activities] = await Promise.all([
+  const [tasks, doneTasks, leads, contacts, tickets, escalatedTickets, workflows, workflowRuns, successfulWorkflowRuns, emailSentActivities, activities] = await Promise.all([
     db.task.count({ where: { workspaceId } }),
     db.task.count({ where: { workspaceId, status: "DONE" } }),
     db.lead.count({ where: { workspaceId } }),
+    db.contact.count({ where: { workspaceId } }),
     db.ticket.count({ where: { workspaceId } }),
     db.ticket.count({ where: { workspaceId, escalated: true } }),
+    db.workflow.count({ where: { workspaceId } }),
+    db.workflowRun.count({ where: { workspaceId } }),
+    db.workflowRun.count({ where: { workspaceId, status: "SUCCESS" } }),
+    db.activityLog.count({ where: { workspaceId, type: { in: ["workflow.email.sent", "ticket.draft.sent"] } } }),
     db.activityLog.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
@@ -16,15 +21,20 @@ export async function buildWorkspaceMetrics(workspaceId: string) {
     }),
   ])
 
-  const automatedTasks = Math.min(95, Math.max(70, tasks * 8 + leads * 5 + tickets * 4))
-
   return {
-    automatedTasks,
-    crmAccuracy: leads > 0 ? 95 : 0,
-    responseTime: tickets > 0 ? "<30s" : "0s",
-    timeSaved: Math.max(0, Math.round((tasks + leads + tickets) * 0.7)),
+    tasks,
+    doneTasks,
+    leads,
+    contacts,
+    tickets,
+    escalatedTickets,
+    workflows,
+    workflowRuns,
+    successfulWorkflowRuns,
+    emailSentActivities,
     taskCompletion: tasks ? Math.round((doneTasks / tasks) * 100) : 0,
     escalationRate: tickets ? Math.round((escalatedTickets / tickets) * 100) : 0,
+    workflowSuccessRate: workflowRuns ? Math.round((successfulWorkflowRuns / workflowRuns) * 100) : 0,
     activities,
   }
 }
@@ -33,10 +43,16 @@ export async function createReport(workspaceId: string, period = "weekly") {
   const metrics = await buildWorkspaceMetrics(workspaceId)
   const body = [
     `OpsPilot ${period} report`,
-    `Automated task coverage: ${metrics.automatedTasks}%`,
-    `CRM accuracy: ${metrics.crmAccuracy}%`,
+    `CRM leads: ${metrics.leads}`,
+    `Contacts: ${metrics.contacts}`,
+    `Tasks: ${metrics.tasks}`,
     `Task completion: ${metrics.taskCompletion}%`,
+    `Support tickets: ${metrics.tickets}`,
     `Escalation rate: ${metrics.escalationRate}%`,
+    `Workflows: ${metrics.workflows}`,
+    `Workflow runs: ${metrics.workflowRuns}`,
+    `Workflow success rate: ${metrics.workflowSuccessRate}%`,
+    `Customer emails sent: ${metrics.emailSentActivities}`,
   ].join("\n")
 
   return db.$transaction(async (tx) => {

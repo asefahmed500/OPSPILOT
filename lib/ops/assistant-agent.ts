@@ -1,5 +1,4 @@
 import "server-only"
-import { createHash } from "node:crypto"
 import { db } from "@/lib/db"
 import { sendWorkflowEmail } from "@/lib/email"
 import { createLead } from "@/lib/ops/lead"
@@ -50,14 +49,18 @@ export async function executeAssistantPlan({
   plan: AssistantPlan
   generateMarketingEmail: MarketingEmailGenerator
 }) {
-  const messageHash = createHash("sha1").update(`${workspaceId}:${message}:${Date.now()}`).digest("hex").slice(0, 10)
   const steps: AgentStep[] = []
 
   for (const action of plan.actions) {
     if (action.type === "create_lead") {
+      if (!action.email) {
+        steps.push({ tool: "crm.createLead", status: "needs_attention", summary: "CRM lead was not created because a real lead email is required." })
+        continue
+      }
+
       const lead = await createLead(workspaceId, {
         name: action.name ?? action.title ?? "New inbound lead",
-        email: action.email ?? `lead-${messageHash}@example.com`,
+        email: action.email,
         company: action.company,
         source: "AI Assistant",
         notes: action.description ?? message,
@@ -117,9 +120,14 @@ export async function executeAssistantPlan({
     }
 
     if (action.type === "create_ticket") {
+      if (!action.email) {
+        steps.push({ tool: "support.createTicket", status: "needs_attention", summary: "Support ticket was not created because a real customer email is required." })
+        continue
+      }
+
       const ticket = await createTicket(workspaceId, {
         subject: action.subject ?? action.title ?? "Assistant-created support ticket",
-        customerEmail: action.email ?? `customer-${messageHash}@example.com`,
+        customerEmail: action.email,
         body: action.body ?? action.description ?? message,
       })
 
