@@ -41,6 +41,15 @@ export async function buildWorkspaceMetrics(workspaceId: string) {
 
 export async function createReport(workspaceId: string, period = "weekly") {
   const metrics = await buildWorkspaceMetrics(workspaceId)
+  const recentRuns = await db.workflowRun.findMany({
+    where: { workspaceId },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    include: {
+      workflow: { select: { name: true, trigger: true } },
+      steps: { orderBy: { createdAt: "asc" } },
+    },
+  })
   const body = [
     `OpsPilot ${period} report`,
     `CRM leads: ${metrics.leads}`,
@@ -53,6 +62,22 @@ export async function createReport(workspaceId: string, period = "weekly") {
     `Workflow runs: ${metrics.workflowRuns}`,
     `Workflow success rate: ${metrics.workflowSuccessRate}%`,
     `Customer emails sent: ${metrics.emailSentActivities}`,
+    "",
+    "Recent system audit:",
+    ...(metrics.activities.length
+      ? metrics.activities.map((activity) => `- ${activity.createdAt.toISOString()} | ${activity.type}: ${activity.message}`)
+      : ["- No recent activity recorded."]),
+    "",
+    "Recent automation runs:",
+    ...(recentRuns.length
+      ? recentRuns.map((run) => {
+          const stepSummary = run.steps.length
+            ? run.steps.map((step) => `${step.tool}=${step.status}`).join(", ")
+            : "No step records"
+
+          return `- ${run.createdAt.toISOString()} | ${run.workflow.name} | ${run.status} | ${stepSummary}`
+        })
+      : ["- No workflow runs recorded."]),
   ].join("\n")
 
   return db.$transaction(async (tx) => {
