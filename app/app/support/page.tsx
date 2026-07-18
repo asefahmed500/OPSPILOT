@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { CustomerReplyForm } from "@/components/app/customer-reply-form"
 import { InboundEmailForm } from "@/components/app/inbound-email-form"
 import { SendTicketDraftForm } from "@/components/app/send-ticket-draft-form"
+import { SyncSupportInboxButton } from "@/components/app/sync-support-inbox-button"
 
 export default async function SupportPage() {
   const user = await requireUser()
@@ -23,6 +24,7 @@ export default async function SupportPage() {
         <div className="mt-6">
           <ActionForm kind="ticket" endpoint="/api/support/tickets" submitLabel="Create ticket" successLabel="Ticket created" />
         </div>
+        <SyncSupportInboxButton />
         <InboundEmailForm />
       </div>
       <div className="op-panel p-5">
