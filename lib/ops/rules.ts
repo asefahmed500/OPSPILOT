@@ -214,7 +214,7 @@ export function parseWorkflowPrompt(prompt: string): {
     })
   }
 
-  if (hasAny(lower, ["ticket", "tiker", "ticker", "support issue", "support request"])) {
+  if (hasAny(lower, ["ticket", "tiker", "ticker", "support handoff", "support handoffs", "support issue", "support request"])) {
     actions.push({
       type: "create_ticket",
       label: "Create support ticket",

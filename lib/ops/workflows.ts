@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 import { mergeWorkflowActions, normalizeWorkflowActions, parseWorkflowPrompt, type WorkflowAction } from "@/lib/ops/rules"
 import { AppError } from "@/lib/errors"
 import { sendWorkflowEmail } from "@/lib/email"
-import { generateWorkflowActions } from "@/lib/ai"
+import { generateWorkflowActions, generateWorkflowMarketingEmail } from "@/lib/ai"
 import { createLead } from "@/lib/ops/lead"
 import { createTask } from "@/lib/ops/tasks"
 import { createTicket } from "@/lib/ops/support"
@@ -196,13 +196,18 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
   }
 
   try {
+    const marketingEmail = await generateWorkflowMarketingEmail({
+      workflowName: workflow.name,
+      prompt: workflow.prompt,
+      customerName: customerName === customerEmail ? undefined : customerName,
+      company: customerAction?.company,
+    })
+
     await sendWorkflowEmail({
       to: recipientEmail,
       workflowName: workflow.name,
-      prompt: workflow.prompt,
-      actions: executableActions.map((action) => action.label),
-      subject: emailAction.subject,
-      body: emailAction.body,
+      subject: marketingEmail.subject || emailAction.subject,
+      body: marketingEmail.body || emailAction.body,
     })
 
     await db.activityLog.create({

@@ -51,36 +51,31 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
 export async function sendWorkflowEmail({
   to,
   workflowName,
-  prompt,
-  actions,
   subject,
   body,
 }: {
   to: string
   workflowName: string
-  prompt: string
-  actions: string[]
   subject?: string
   body?: string
 }) {
   const transporter = createSmtpTransporter()
   const emailSubject = subject ?? `OpsPilot follow-up: ${workflowName}`
+  const emailBody = body ?? [
+    "Hi,",
+    "",
+    "I wanted to share a quick update from OpsPilot.",
+    "OpsPilot helps automate CRM follow-up, support handoffs, task creation, and daily workflow operations.",
+    "",
+    "Best,",
+    "The OpsPilot team",
+  ].join("\n")
 
   return transporter.sendMail({
     from: env.SMTP_FROM,
     to,
     subject: emailSubject,
-    text: [
-      body ?? "Thanks for your interest. I am following up with the next steps and will keep your CRM record updated.",
-      "",
-      `Workflow: ${workflowName}`,
-      "",
-      "Actions:",
-      ...actions.map((action) => `- ${action}`),
-      "",
-      "Original request:",
-      prompt,
-    ].join("\n"),
+    text: emailBody,
   })
 }
 

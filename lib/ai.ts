@@ -53,6 +53,11 @@ const workflowPlanSchema = z.object({
     .max(6),
 })
 
+const marketingEmailSchema = z.object({
+  subject: z.string().min(1).max(120),
+  body: z.string().min(1).max(2000),
+})
+
 function extractJsonObject(text: string) {
   const start = text.indexOf("{")
   const end = text.lastIndexOf("}")
@@ -169,6 +174,67 @@ export async function generateWorkflowActions(prompt: string): Promise<WorkflowA
     return parsed.success ? parsed.data.actions : null
   } catch {
     return null
+  }
+}
+
+export async function generateWorkflowMarketingEmail({
+  workflowName,
+  prompt,
+  customerName,
+  company,
+}: {
+  workflowName: string
+  prompt: string
+  customerName?: string
+  company?: string
+}) {
+  const fallbackSubject = workflowName.toLowerCase().includes("follow")
+    ? workflowName
+    : `A quick update from OpsPilot`
+  const fallbackBody = [
+    customerName ? `Hi ${customerName},` : "Hi,",
+    "",
+    "I wanted to share a quick update from OpsPilot.",
+    "OpsPilot helps teams automate CRM follow-up, support handoffs, task creation, and everyday operational workflows so work moves faster with less manual tracking.",
+    "",
+    "If this is useful for your team, I would be happy to share the next steps.",
+    "",
+    "Best,",
+    "The OpsPilot team",
+  ].join("\n")
+
+  const text = await generateAiText(
+    [
+      "You write customer-facing marketing and follow-up emails for OpsPilot.",
+      "Return only JSON. Do not include markdown.",
+      "The customer must not see internal workflow actions, database updates, ticket IDs, task IDs, or automation logs.",
+      "Write concise, professional email copy based on the user's workflow prompt.",
+      "Keep it helpful and specific, not spammy. Do not invent pricing or unsupported integrations.",
+      "Schema: {\"subject\":\"...\",\"body\":\"...\"}",
+    ].join(" "),
+    [
+      `Workflow name: ${workflowName}`,
+      `Customer name: ${customerName ?? "Unknown"}`,
+      `Customer company: ${company ?? "Unknown"}`,
+      `Marketing/follow-up request: ${prompt}`,
+    ].join("\n")
+  )
+
+  if (!text) {
+    return { subject: fallbackSubject, body: fallbackBody }
+  }
+
+  const json = extractJsonObject(text)
+
+  if (!json) {
+    return { subject: fallbackSubject, body: fallbackBody }
+  }
+
+  try {
+    const parsed = marketingEmailSchema.safeParse(JSON.parse(json))
+    return parsed.success ? parsed.data : { subject: fallbackSubject, body: fallbackBody }
+  } catch {
+    return { subject: fallbackSubject, body: fallbackBody }
   }
 }
 
