@@ -66,6 +66,7 @@ export const ModelName = {
   AiMessage: 'AiMessage',
   Workflow: 'Workflow',
   WorkflowRun: 'WorkflowRun',
+  AutomationRunStep: 'AutomationRunStep',
   IntegrationAccount: 'IntegrationAccount',
   ActivityLog: 'ActivityLog',
   Report: 'Report'
@@ -292,6 +293,20 @@ export const WorkflowRunScalarFieldEnum = {
 } as const
 
 export type WorkflowRunScalarFieldEnum = (typeof WorkflowRunScalarFieldEnum)[keyof typeof WorkflowRunScalarFieldEnum]
+
+
+export const AutomationRunStepScalarFieldEnum = {
+  id: 'id',
+  tool: 'tool',
+  status: 'status',
+  summary: 'summary',
+  metadata: 'metadata',
+  workflowRunId: 'workflowRunId',
+  workspaceId: 'workspaceId',
+  createdAt: 'createdAt'
+} as const
+
+export type AutomationRunStepScalarFieldEnum = (typeof AutomationRunStepScalarFieldEnum)[keyof typeof AutomationRunStepScalarFieldEnum]
 
 
 export const IntegrationAccountScalarFieldEnum = {

@@ -1,5 +1,6 @@
 import "server-only"
 import { db } from "@/lib/db"
+import { Prisma } from "@/generated/prisma/client"
 import { mergeWorkflowActions, normalizeWorkflowActions, parseWorkflowPrompt, type WorkflowAction } from "@/lib/ops/rules"
 import { AppError } from "@/lib/errors"
 import { sendWorkflowEmail } from "@/lib/email"
@@ -14,6 +15,24 @@ type WorkflowCustomerFields = {
   customerEmail?: string
   customerName?: string
   company?: string
+}
+
+type WorkflowStepRecord = {
+  tool: string
+  status: "SUCCESS" | "FAILED" | "SKIPPED"
+  summary: string
+  metadata?: Prisma.InputJsonObject
+}
+
+function stepData(step: WorkflowStepRecord, workflowRunId: string, workspaceId: string) {
+  return {
+    tool: step.tool,
+    status: step.status,
+    summary: step.summary,
+    ...(step.metadata ? { metadata: step.metadata } : {}),
+    workflowRunId,
+    workspaceId,
+  }
 }
 
 function withWorkflowCustomerFields(actions: WorkflowAction[], fields?: WorkflowCustomerFields) {
@@ -140,9 +159,43 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
   const customerAction = executableActions.find((action) => action.email || action.name || action.company)
   const customerEmail = customerAction?.email ?? emailAction?.email
   const customerName = customerAction?.name ?? customerEmail ?? "Workflow lead"
+  const steps: WorkflowStepRecord[] = []
 
   if (shouldSendEmail && !emailAction?.email) {
-    throw new AppError("Workflow email action needs a customer email in the workflow prompt", 400, "WORKFLOW_EMAIL_RECIPIENT_REQUIRED")
+    const skippedRun = await db.workflowRun.create({
+      data: {
+        workflowId: workflow.id,
+        workspaceId,
+        status: "SKIPPED",
+        output: {
+          actions: executableActions,
+          message: "Workflow needs a customer email before it can send an email.",
+        },
+      },
+    })
+    await db.automationRunStep.create({
+      data: {
+        tool: "email.validateRecipient",
+        status: "SKIPPED",
+        summary: "Email action skipped because the workflow prompt has no customer email.",
+        workflowRunId: skippedRun.id,
+        workspaceId,
+      },
+    })
+
+    await db.activityLog.create({
+      data: {
+        type: "workflow.skipped",
+        message: `Skipped workflow "${workflow.name}" because an email recipient is missing`,
+        metadata: { workflowId: workflow.id, runId: skippedRun.id },
+        workspaceId,
+      },
+    })
+
+    return db.workflowRun.findUniqueOrThrow({
+      where: { id: skippedRun.id },
+      include: { steps: { orderBy: { createdAt: "asc" } } },
+    })
   }
 
   const createdLead = executableActions.some((action) => action.type === "create_crm_record")
@@ -154,6 +207,14 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
         notes: workflow.prompt,
       })
     : null
+  if (createdLead) {
+    steps.push({
+      tool: "crm.createLead",
+      status: "SUCCESS",
+      summary: `Created CRM lead "${createdLead.name}".`,
+      metadata: { leadId: createdLead.id },
+    })
+  }
 
   const ticketAction = executableActions.find((action) => action.type === "create_ticket")
   const createdTicket = ticketAction
@@ -164,6 +225,14 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
         body: ticketAction.body ?? ticketAction.description ?? workflow.prompt,
       })
     : null
+  if (createdTicket) {
+    steps.push({
+      tool: "support.createTicket",
+      status: "SUCCESS",
+      summary: `Created support ticket "${createdTicket.subject}".`,
+      metadata: { ticketId: createdTicket.id },
+    })
+  }
 
   const taskAction = executableActions.find((action) => action.type === "create_task")
   const createdTask = taskAction
@@ -175,9 +244,18 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
         ticketId: createdTicket?.id,
       })
     : null
+  if (createdTask) {
+    steps.push({
+      tool: "tasks.create",
+      status: "SUCCESS",
+      summary: `Created task "${createdTask.title}".`,
+      metadata: { taskId: createdTask.id },
+    })
+  }
 
   const runOutput = {
     actions: executableActions,
+    steps: steps.map((step) => ({ tool: step.tool, status: step.status, summary: step.summary })),
     leadId: createdLead?.id,
     leadName: createdLead?.name,
     leadEmail: createdLead?.email,
@@ -201,6 +279,14 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
       },
     })
 
+    if (steps.length) {
+      await tx.automationRunStep.createMany({
+        data: steps.map((step) => ({
+          ...stepData(step, workflowRun.id, workspaceId),
+        })),
+      })
+    }
+
     await tx.activityLog.create({
       data: {
         type: "workflow.run",
@@ -210,7 +296,10 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
       },
     })
 
-    return workflowRun
+    return tx.workflowRun.findUniqueOrThrow({
+      where: { id: workflowRun.id },
+      include: { steps: { orderBy: { createdAt: "asc" } } },
+    })
   })
 
   if (!shouldSendEmail) {
@@ -252,25 +341,53 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
       data: {
         output: {
           ...runOutput,
+          steps: [
+            ...steps.map((step) => ({ tool: step.tool, status: step.status, summary: step.summary })),
+            { tool: "email.send", status: "SUCCESS", summary: `Sent customer email to ${recipientEmail}.` },
+          ],
           message: "Internal actions executed; workflow email sent.",
         },
+        steps: {
+          create: {
+            tool: "email.send",
+            status: "SUCCESS",
+            summary: `Sent customer email to ${recipientEmail}.`,
+            metadata: { recipientEmail },
+            workspaceId,
+          },
+        },
       },
+      include: { steps: { orderBy: { createdAt: "asc" } } },
     })
 
     return updatedRun
   } catch (error) {
-    await db.workflowRun.update({
+    const failedRun = await db.workflowRun.update({
       where: { id: run.id },
       data: {
         status: "FAILED",
         output: {
           actions: executableActions,
+          steps: [
+            ...steps.map((step) => ({ tool: step.tool, status: step.status, summary: step.summary })),
+            { tool: "email.send", status: "FAILED", summary: "Workflow email action failed." },
+          ],
           message: "Workflow email action failed.",
           error: error instanceof Error ? error.message : "Unknown email error",
         },
+        steps: {
+          create: {
+            tool: "email.send",
+            status: "FAILED",
+            summary: "Workflow email action failed.",
+            metadata: { error: error instanceof Error ? error.message : "Unknown email error" },
+            workspaceId,
+          },
+        },
       },
+      include: { steps: { orderBy: { createdAt: "asc" } } },
     })
 
-    throw new AppError("Workflow ran, but the email action failed", 502, "WORKFLOW_EMAIL_FAILED")
+    return failedRun
   }
 }

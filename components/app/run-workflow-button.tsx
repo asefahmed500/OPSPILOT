@@ -11,6 +11,12 @@ export function RunWorkflowButton({ workflowId }: { workflowId: string }) {
 
   async function run() {
     setError("")
+    const confirmed = window.confirm("Run this workflow now? OpsPilot may create CRM records, tasks, tickets, and send configured emails.")
+
+    if (!confirmed) {
+      return
+    }
+
     setLoading(true)
     const response = await fetch(`/api/workflows/${workflowId}/run`, { method: "POST" })
     setLoading(false)

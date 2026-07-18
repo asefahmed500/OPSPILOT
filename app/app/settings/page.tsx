@@ -2,6 +2,7 @@ import { ActionForm } from "@/components/app/action-form"
 import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
+import Link from "next/link"
 
 export default async function SettingsPage() {
   const user = await requireUser()
@@ -16,6 +17,9 @@ export default async function SettingsPage() {
         <div className="op-panel mt-6 p-5">
           <p className="font-medium">{workspace.name}</p>
           <p className="mt-1 text-sm text-slate-500">{user.email}</p>
+          <Link href="/app/settings/system-health" className="mt-4 inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+            Open system health
+          </Link>
         </div>
       </div>
       <div className="space-y-6">

@@ -70,6 +70,13 @@ enum WorkflowRunStatus {
   SKIPPED
 }
 
+enum AutomationStepStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
@@ -114,6 +121,7 @@ model Workspace {
   conversations Conversation[]
   workflows    Workflow[]
   workflowRuns WorkflowRun[]
+  automationRunSteps AutomationRunStep[]
   integrations IntegrationAccount[]
   activityLogs ActivityLog[]
   reports      Report[]
@@ -303,6 +311,23 @@ model WorkflowRun {
   createdAt   DateTime          @default(now())
   workflow    Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  steps       AutomationRunStep[]
+}
+
+model AutomationRunStep {
+  id            String               @id @default(cuid())
+  tool          String
+  status        AutomationStepStatus @default(PENDING)
+  summary       String
+  metadata      Json?
+  workflowRunId String?
+  workspaceId   String
+  createdAt     DateTime             @default(now())
+  workflowRun   WorkflowRun?         @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  workspace     Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([workflowRunId])
 }
 
 model IntegrationAccount {

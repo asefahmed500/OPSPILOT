@@ -117,6 +117,11 @@ export type Workflow = Prisma.WorkflowModel
  */
 export type WorkflowRun = Prisma.WorkflowRunModel
 /**
+ * Model AutomationRunStep
+ * 
+ */
+export type AutomationRunStep = Prisma.AutomationRunStepModel
+/**
  * Model IntegrationAccount
  * 
  */

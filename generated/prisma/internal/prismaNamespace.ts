@@ -399,6 +399,7 @@ export const ModelName = {
   AiMessage: 'AiMessage',
   Workflow: 'Workflow',
   WorkflowRun: 'WorkflowRun',
+  AutomationRunStep: 'AutomationRunStep',
   IntegrationAccount: 'IntegrationAccount',
   ActivityLog: 'ActivityLog',
   Report: 'Report'
@@ -417,7 +418,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "passwordResetToken" | "workspace" | "membership" | "company" | "contact" | "lead" | "interaction" | "task" | "ticket" | "ticketMessage" | "conversation" | "aiMessage" | "workflow" | "workflowRun" | "integrationAccount" | "activityLog" | "report"
+    modelProps: "user" | "passwordResetToken" | "workspace" | "membership" | "company" | "contact" | "lead" | "interaction" | "task" | "ticket" | "ticketMessage" | "conversation" | "aiMessage" | "workflow" | "workflowRun" | "automationRunStep" | "integrationAccount" | "activityLog" | "report"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1531,6 +1532,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    AutomationRunStep: {
+      payload: Prisma.$AutomationRunStepPayload<ExtArgs>
+      fields: Prisma.AutomationRunStepFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AutomationRunStepFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AutomationRunStepFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload>
+        }
+        findFirst: {
+          args: Prisma.AutomationRunStepFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AutomationRunStepFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload>
+        }
+        findMany: {
+          args: Prisma.AutomationRunStepFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload>[]
+        }
+        create: {
+          args: Prisma.AutomationRunStepCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload>
+        }
+        createMany: {
+          args: Prisma.AutomationRunStepCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AutomationRunStepCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload>[]
+        }
+        delete: {
+          args: Prisma.AutomationRunStepDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload>
+        }
+        update: {
+          args: Prisma.AutomationRunStepUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload>
+        }
+        deleteMany: {
+          args: Prisma.AutomationRunStepDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AutomationRunStepUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AutomationRunStepUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload>[]
+        }
+        upsert: {
+          args: Prisma.AutomationRunStepUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AutomationRunStepPayload>
+        }
+        aggregate: {
+          args: Prisma.AutomationRunStepAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAutomationRunStep>
+        }
+        groupBy: {
+          args: Prisma.AutomationRunStepGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AutomationRunStepGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AutomationRunStepCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AutomationRunStepCountAggregateOutputType> | number
+        }
+      }
+    }
     IntegrationAccount: {
       payload: Prisma.$IntegrationAccountPayload<ExtArgs>
       fields: Prisma.IntegrationAccountFieldRefs
@@ -1999,6 +2074,20 @@ export const WorkflowRunScalarFieldEnum = {
 export type WorkflowRunScalarFieldEnum = (typeof WorkflowRunScalarFieldEnum)[keyof typeof WorkflowRunScalarFieldEnum]
 
 
+export const AutomationRunStepScalarFieldEnum = {
+  id: 'id',
+  tool: 'tool',
+  status: 'status',
+  summary: 'summary',
+  metadata: 'metadata',
+  workflowRunId: 'workflowRunId',
+  workspaceId: 'workspaceId',
+  createdAt: 'createdAt'
+} as const
+
+export type AutomationRunStepScalarFieldEnum = (typeof AutomationRunStepScalarFieldEnum)[keyof typeof AutomationRunStepScalarFieldEnum]
+
+
 export const IntegrationAccountScalarFieldEnum = {
   id: 'id',
   provider: 'provider',
@@ -2281,6 +2370,20 @@ export type ListEnumWorkflowRunStatusFieldRefInput<$PrismaModel> = FieldRefInput
 
 
 /**
+ * Reference to a field of type 'AutomationStepStatus'
+ */
+export type EnumAutomationStepStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AutomationStepStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'AutomationStepStatus[]'
+ */
+export type ListEnumAutomationStepStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AutomationStepStatus[]'>
+    
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -2418,6 +2521,7 @@ export type GlobalOmitConfig = {
   aiMessage?: Prisma.AiMessageOmit
   workflow?: Prisma.WorkflowOmit
   workflowRun?: Prisma.WorkflowRunOmit
+  automationRunStep?: Prisma.AutomationRunStepOmit
   integrationAccount?: Prisma.IntegrationAccountOmit
   activityLog?: Prisma.ActivityLogOmit
   report?: Prisma.ReportOmit

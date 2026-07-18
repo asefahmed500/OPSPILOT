@@ -29,10 +29,39 @@ function workflowActionLabels(actions: unknown) {
     .map((action) => `${action.label}${action.email ? ` -> ${action.email}` : ""}`)
 }
 
+function workflowRunSteps(output: unknown, persistedSteps?: { id: string; tool: string; status: string; summary: string }[]) {
+  if (persistedSteps?.length) {
+    return persistedSteps.map((step) => ({
+      key: step.id,
+      tool: step.tool,
+      status: step.status,
+      summary: step.summary,
+    }))
+  }
+
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return []
+  }
+
+  const steps = (output as Record<string, unknown>).steps
+
+  if (!Array.isArray(steps)) {
+    return []
+  }
+
+  return steps
+    .filter((step): step is { tool: string; status: string; summary: string } => Boolean(step) && typeof step === "object" && typeof (step as { tool?: unknown }).tool === "string" && typeof (step as { summary?: unknown }).summary === "string")
+    .map((step, index) => ({ key: `${step.tool}-${index}`, tool: step.tool, status: step.status ?? "UNKNOWN", summary: step.summary }))
+}
+
 export default async function WorkflowsPage() {
   const user = await requireUser()
   const workspace = await requireWorkspace(user.id)
-  const workflows = await db.workflow.findMany({ where: { workspaceId: workspace.id }, orderBy: { createdAt: "desc" }, include: { runs: { orderBy: { createdAt: "desc" }, take: 1 } } })
+  const workflows = await db.workflow.findMany({
+    where: { workspaceId: workspace.id },
+    orderBy: { createdAt: "desc" },
+    include: { runs: { orderBy: { createdAt: "desc" }, take: 1, include: { steps: { orderBy: { createdAt: "asc" } } } } },
+  })
 
   return (
     <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
@@ -75,6 +104,16 @@ export default async function WorkflowsPage() {
               {workflow.runs[0]?.output ? (
                 <div className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600">
                   <p className="font-semibold text-slate-900">{workflowOutputValue(workflow.runs[0].output, "message") ?? "Workflow run completed."}</p>
+                  {workflowRunSteps(workflow.runs[0].output, workflow.runs[0].steps).length ? (
+                    <div className="mt-3 space-y-2">
+                      {workflowRunSteps(workflow.runs[0].output, workflow.runs[0].steps).map((step) => (
+                        <div key={step.key} className="flex gap-2 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+                          <span className="shrink-0 font-semibold text-slate-900">{step.status}</span>
+                          <span>{step.summary}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     {workflowOutputValue(workflow.runs[0].output, "leadId") ? (
                       <Link href="/app/crm" className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-blue-900 transition hover:border-blue-200 hover:bg-blue-100">

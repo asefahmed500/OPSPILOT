@@ -97,3 +97,13 @@ export const WorkflowRunStatus = {
 } as const
 
 export type WorkflowRunStatus = (typeof WorkflowRunStatus)[keyof typeof WorkflowRunStatus]
+
+
+export const AutomationStepStatus = {
+  PENDING: 'PENDING',
+  SUCCESS: 'SUCCESS',
+  FAILED: 'FAILED',
+  SKIPPED: 'SKIPPED'
+} as const
+
+export type AutomationStepStatus = (typeof AutomationStepStatus)[keyof typeof AutomationStepStatus]
