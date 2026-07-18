@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { classifyTicket, draftTicketResponse, shouldEscalateTicket } from "@/lib/ops/rules"
 import { AppError } from "@/lib/errors"
 import { sendCustomerEmail } from "@/lib/email"
+import { emitAutomationEvent } from "@/lib/ops/events"
 
 export { classifyTicket, draftTicketResponse, shouldEscalateTicket }
 
@@ -14,6 +15,7 @@ export async function createTicket(
     body: string
     customerName?: string
     channel?: "WEBSITE_CHAT" | "EMAIL" | "WHATSAPP" | "SLACK" | "DISCORD"
+    suppressEvents?: boolean
   }
 ) {
   const text = `${input.subject} ${input.body}`
@@ -27,7 +29,7 @@ export async function createTicket(
       .replace(/[._-]+/g, " ")
       .replace(/\b\w/g, (character) => character.toUpperCase())
 
-  return db.$transaction(async (tx) => {
+  const ticket = await db.$transaction(async (tx) => {
     const contact = await tx.contact.upsert({
       where: {
         workspaceId_email: {
@@ -77,6 +79,25 @@ export async function createTicket(
 
     return ticket
   })
+
+  if (!input.suppressEvents) {
+    await emitAutomationEvent({
+      type: "ticket.created",
+      workspaceId,
+      sourceId: ticket.id,
+      customerEmail: ticket.customerEmail,
+      customerName,
+      summary: `Ticket event: "${ticket.subject}" was created`,
+      metadata: {
+        ticketId: ticket.id,
+        category: ticket.category,
+        priority: ticket.priority,
+        escalated: ticket.escalated,
+      },
+    })
+  }
+
+  return ticket
 }
 
 async function draftCustomerReply(ticket: {
@@ -112,7 +133,8 @@ async function draftCustomerReply(ticket: {
 export async function handleCustomerReply(
   workspaceId: string,
   ticketId: string,
-  body: string
+  body: string,
+  options?: { suppressEvents?: boolean }
 ) {
   const ticket = await db.ticket.findFirst({
     where: { id: ticketId, workspaceId },
@@ -138,7 +160,7 @@ export async function handleCustomerReply(
 
   const reply = await draftCustomerReply(ticket, normalizedBody)
 
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const customerMessage = await tx.ticketMessage.create({
       data: {
         ticketId: ticket.id,
@@ -181,6 +203,22 @@ export async function handleCustomerReply(
 
     return { ticket: updatedTicket, task, reply, needsConfirmation: true }
   })
+
+  if (!options?.suppressEvents) {
+    await emitAutomationEvent({
+      type: "customer.reply.received",
+      workspaceId,
+      sourceId: ticket.id,
+      customerEmail: ticket.customerEmail,
+      summary: `Customer reply event: ${ticket.customerEmail} replied to "${ticket.subject}"`,
+      metadata: {
+        ticketId: ticket.id,
+        taskId: result.task.id,
+      },
+    })
+  }
+
+  return result
 }
 
 export async function sendConfirmedTicketDraft(

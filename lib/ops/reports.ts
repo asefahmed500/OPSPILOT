@@ -1,6 +1,7 @@
 import "server-only"
 import { db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
+import { emitAutomationEvent } from "@/lib/ops/events"
 
 export async function buildWorkspaceMetrics(workspaceId: string) {
   const [tasks, doneTasks, leads, contacts, tickets, escalatedTickets, workflows, workflowRuns, successfulWorkflowRuns, emailSentActivities, activities] = await Promise.all([
@@ -39,7 +40,7 @@ export async function buildWorkspaceMetrics(workspaceId: string) {
   }
 }
 
-export async function createReport(workspaceId: string, period = "weekly") {
+export async function createReport(workspaceId: string, period = "weekly", options?: { suppressEvents?: boolean }) {
   const metrics = await buildWorkspaceMetrics(workspaceId)
   const recentRuns = await db.workflowRun.findMany({
     where: { workspaceId },
@@ -80,7 +81,7 @@ export async function createReport(workspaceId: string, period = "weekly") {
       : ["- No workflow runs recorded."]),
   ].join("\n")
 
-  return db.$transaction(async (tx) => {
+  const report = await db.$transaction(async (tx) => {
     const report = await tx.report.create({
       data: {
         title: `${period[0].toUpperCase()}${period.slice(1)} operations report`,
@@ -102,6 +103,18 @@ export async function createReport(workspaceId: string, period = "weekly") {
 
     return report
   })
+
+  if (!options?.suppressEvents) {
+    await emitAutomationEvent({
+      type: "report.generated",
+      workspaceId,
+      sourceId: report.id,
+      summary: `Report event: ${report.title} was generated`,
+      metadata: { reportId: report.id, period },
+    })
+  }
+
+  return report
 }
 
 export async function deleteReport(workspaceId: string, reportId: string) {

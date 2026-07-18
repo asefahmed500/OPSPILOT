@@ -65,6 +65,8 @@ Say:
 
 > The important part is that the AI does not just write text. It plans safe internal actions, validates the request, executes real tools, and returns an audit-friendly summary.
 
+> OpsPilot is also event-driven: when leads, tickets, replies, reports, tasks, or emails happen, the system records an event. Lead and support events can automatically trigger enabled workflows, and workflow-created child records suppress events so automations do not loop.
+
 ### 4. Verify Real System Changes
 
 Open these pages:

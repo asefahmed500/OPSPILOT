@@ -2,6 +2,7 @@ import "server-only"
 import { db } from "@/lib/db"
 import { nextLeadAction, scoreLead, summarizeLead } from "@/lib/ops/rules"
 import { AppError } from "@/lib/errors"
+import { emitAutomationEvent } from "@/lib/ops/events"
 
 export type LeadInput = {
   name: string
@@ -9,6 +10,7 @@ export type LeadInput = {
   source?: string
   company?: string
   notes?: string
+  suppressEvents?: boolean
 }
 
 export { nextLeadAction, scoreLead, summarizeLead }
@@ -29,7 +31,7 @@ export async function createLead(workspaceId: string, input: LeadInput) {
   const score = scoreLead({ ...input, email })
   const domain = email.split("@")[1]
 
-  return db.$transaction(async (tx) => {
+  const lead = await db.$transaction(async (tx) => {
     const company = input.company
       ? (await tx.company.findFirst({
           where: { workspaceId, name: input.company },
@@ -83,6 +85,21 @@ export async function createLead(workspaceId: string, input: LeadInput) {
 
     return lead
   })
+
+  if (!input.suppressEvents) {
+    await emitAutomationEvent({
+      type: "lead.created",
+      workspaceId,
+      sourceId: lead.id,
+      customerEmail: lead.email,
+      customerName: lead.name,
+      company: input.company,
+      summary: `Lead event: ${lead.name} was created from ${lead.source}`,
+      metadata: { leadId: lead.id, score: lead.score },
+    })
+  }
+
+  return lead
 }
 
 export async function deleteLead(workspaceId: string, leadId: string) {

@@ -6,6 +6,8 @@ This document explains how OpsPilot's AI agent, automations, email, CRM, tasks, 
 
 OpsPilot is not only a chatbot. The assistant uses AI as a planner, then executes validated internal tools that are scoped to the signed-in workspace.
 
+OpsPilot also includes a lightweight event-driven automation layer. Product actions emit internal events, and enabled workflows can run automatically from those events.
+
 The agent can:
 
 - Generate customer-facing emails from natural language.
@@ -17,6 +19,7 @@ The agent can:
 - Run workflow automations.
 - Generate daily or weekly reports.
 - Write audit logs so users can verify what happened.
+- Emit events such as `lead.created`, `ticket.created`, `customer.reply.received`, `task.created`, `report.generated`, and `customer.email.sent`.
 
 ## Slash Commands
 
@@ -68,10 +71,44 @@ flowchart TD
   WF --> DB
   REPORT --> DB
   EXEC --> AUDIT[ActivityLog + WorkflowRun Output]
+  EXEC --> EVENTS[Automation Event Bus]
+  EVENTS --> MATCH[Match Enabled Workflows]
+  MATCH --> WF
   AUDIT --> DB
   DB --> STORE2[Persist assistant AiMessage]
   STORE2 --> UI
 ```
+
+## Event-Driven Automation Layer
+
+```mermaid
+flowchart TD
+  ProductAction[CRM, Support, Task, Report, or Email action] --> Emit[emitAutomationEvent]
+  Emit --> Activity[ActivityLog event.* record]
+  Emit --> Route{Event has workflow trigger?}
+  Route -- lead.created --> NewLead[NEW_LEAD workflows]
+  Route -- ticket.created / customer.reply.received --> NewTicket[NEW_SUPPORT_TICKET workflows]
+  Route -- task/report/email --> AuditOnly[Audit only]
+  NewLead --> RunWorkflow[Run matching enabled workflows]
+  NewTicket --> RunWorkflow
+  RunWorkflow --> Reuse[Reuse triggering lead or ticket]
+  Reuse --> Suppress[Suppress child events to avoid loops]
+  Suppress --> RunOutput[WorkflowRun output + steps]
+  RunOutput --> Reports[/app/reports audit diagram]
+```
+
+Events currently supported:
+
+| Event | Triggered From | Workflow Trigger |
+| --- | --- | --- |
+| `lead.created` | CRM lead creation | `NEW_LEAD` |
+| `ticket.created` | Support ticket creation | `NEW_SUPPORT_TICKET` |
+| `customer.reply.received` | Support reply handling | `NEW_SUPPORT_TICKET` |
+| `task.created` | Task creation | Audit only |
+| `report.generated` | Report generation | Audit only |
+| `customer.email.sent` | Assistant/workflow email send | Audit only |
+
+Workflow-created child records use `suppressEvents` so a workflow does not recursively trigger itself.
 
 ## AI Planning Flow
 

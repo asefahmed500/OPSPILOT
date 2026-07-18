@@ -8,6 +8,7 @@ import { generateWorkflowActions, generateWorkflowMarketingEmail } from "@/lib/a
 import { createLead } from "@/lib/ops/lead"
 import { createTask } from "@/lib/ops/tasks"
 import { createTicket } from "@/lib/ops/support"
+import { emitAutomationEvent, type AutomationEvent } from "@/lib/ops/events"
 
 export { parseWorkflowPrompt, type WorkflowAction }
 
@@ -161,7 +162,7 @@ export async function bulkDeleteWorkflows(workspaceId: string, workflowIds: stri
   return { deleted: workflows.length }
 }
 
-export async function runWorkflow(workspaceId: string, workflowId: string) {
+export async function runWorkflow(workspaceId: string, workflowId: string, options?: { event?: AutomationEvent }) {
   const workflow = await db.workflow.findFirst({
     where: { id: workflowId, workspaceId },
   })
@@ -171,7 +172,16 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
   }
 
   const actions = normalizeWorkflowActions(workflow.actions)
-  const executableActions: WorkflowAction[] = mergeWorkflowActions(actions, parseWorkflowPrompt(workflow.prompt).actions)
+  const executableActions: WorkflowAction[] = withWorkflowCustomerFields(
+    mergeWorkflowActions(actions, parseWorkflowPrompt(workflow.prompt).actions),
+    options?.event
+      ? {
+          customerEmail: options.event.customerEmail,
+          customerName: options.event.customerName,
+          company: options.event.company,
+        }
+      : undefined
+  )
   const emailAction = executableActions.find((action) => action.type === "send_email")
   const shouldSendEmail = Boolean(emailAction)
   const customerAction = executableActions.find((action) => action.email || action.name || action.company)
@@ -210,6 +220,12 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
   }
 
   const shouldCreateLead = executableActions.some((action) => action.type === "create_crm_record")
+  const existingEventLead = shouldCreateLead && options?.event?.type === "lead.created" && options.event.sourceId
+    ? await db.lead.findFirst({
+        where: { id: options.event.sourceId, workspaceId },
+        select: { id: true, name: true, email: true },
+      })
+    : null
   if (shouldCreateLead && !customerEmail) {
     steps.push({
       tool: "crm.createLead",
@@ -218,16 +234,26 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
     })
   }
 
-  const createdLead = shouldCreateLead && customerEmail
+  if (existingEventLead) {
+    steps.push({
+      tool: "crm.useEventLead",
+      status: "SUCCESS",
+      summary: `Used event lead "${existingEventLead.name}".`,
+      metadata: { leadId: existingEventLead.id },
+    })
+  }
+
+  const createdLead = existingEventLead ?? (shouldCreateLead && customerEmail
     ? await createLead(workspaceId, {
         name: customerName,
         email: customerEmail,
         company: customerAction?.company,
         source: "Workflow",
         notes: workflow.prompt,
+        suppressEvents: true,
       })
-    : null
-  if (createdLead) {
+    : null)
+  if (createdLead && !existingEventLead) {
     steps.push({
       tool: "crm.createLead",
       status: "SUCCESS",
@@ -237,6 +263,12 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
   }
 
   const ticketAction = executableActions.find((action) => action.type === "create_ticket")
+  const existingEventTicket = ticketAction && options?.event?.sourceId && ["ticket.created", "customer.reply.received"].includes(options.event.type)
+    ? await db.ticket.findFirst({
+        where: { id: options.event.sourceId, workspaceId },
+        select: { id: true, subject: true, customerEmail: true },
+      })
+    : null
   if (ticketAction && !customerEmail) {
     steps.push({
       tool: "support.createTicket",
@@ -245,15 +277,25 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
     })
   }
 
-  const createdTicket = ticketAction && customerEmail
+  if (existingEventTicket) {
+    steps.push({
+      tool: "support.useEventTicket",
+      status: "SUCCESS",
+      summary: `Used event ticket "${existingEventTicket.subject}".`,
+      metadata: { ticketId: existingEventTicket.id },
+    })
+  }
+
+  const createdTicket = existingEventTicket ?? (ticketAction && customerEmail
     ? await createTicket(workspaceId, {
         subject: ticketAction.subject ?? `Workflow ticket: ${workflow.name}`,
         customerEmail: ticketAction.email ?? customerEmail,
         customerName,
         body: ticketAction.body ?? ticketAction.description ?? workflow.prompt,
+        suppressEvents: true,
       })
-    : null
-  if (createdTicket) {
+    : null)
+  if (createdTicket && !existingEventTicket) {
     steps.push({
       tool: "support.createTicket",
       status: "SUCCESS",
@@ -270,6 +312,7 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
         priority: "MEDIUM",
         leadId: createdLead?.id,
         ticketId: createdTicket?.id,
+        suppressEvents: true,
       })
     : null
   if (createdTask) {
@@ -292,6 +335,8 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
     ticketId: createdTicket?.id,
     ticketSubject: createdTicket?.subject,
     customerEmail,
+    eventType: options?.event?.type,
+    eventSourceId: options?.event?.sourceId,
   }
 
   const run = await db.$transaction(async (tx) => {
@@ -310,8 +355,8 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
     await tx.activityLog.create({
       data: {
         type: "workflow.run",
-        message: `Ran workflow "${workflow.name}"`,
-        metadata: { workflowId: workflow.id, runId: workflowRun.id },
+        message: options?.event ? `Ran workflow "${workflow.name}" from event ${options.event.type}` : `Ran workflow "${workflow.name}"`,
+        metadata: { workflowId: workflow.id, runId: workflowRun.id, eventType: options?.event?.type, eventSourceId: options?.event?.sourceId },
         workspaceId,
       },
     })
@@ -355,6 +400,15 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
         metadata: { workflowId: workflow.id, runId: run.id },
         workspaceId,
       },
+    })
+    await emitAutomationEvent({
+      type: "customer.email.sent",
+      workspaceId,
+      customerEmail: recipientEmail,
+      customerName: customerName === customerEmail ? undefined : customerName,
+      company: customerAction?.company,
+      summary: `Email event: workflow "${workflow.name}" sent customer email to ${recipientEmail}`,
+      metadata: { workflowId: workflow.id, runId: run.id },
     })
 
     const updatedRun = await db.workflowRun.update({

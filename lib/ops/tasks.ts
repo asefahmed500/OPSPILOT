@@ -2,6 +2,7 @@ import "server-only"
 import { db } from "@/lib/db"
 import { taskFromPrompt } from "@/lib/ops/rules"
 import { AppError } from "@/lib/errors"
+import { emitAutomationEvent } from "@/lib/ops/events"
 
 export { taskFromPrompt }
 
@@ -15,9 +16,10 @@ export async function createTask(
     dueAt?: string | Date
     leadId?: string
     ticketId?: string
+    suppressEvents?: boolean
   }
 ) {
-  return db.$transaction(async (tx) => {
+  const task = await db.$transaction(async (tx) => {
     const task = await tx.task.create({
       data: {
         title: input.title,
@@ -42,6 +44,23 @@ export async function createTask(
 
     return task
   })
+
+  if (!input.suppressEvents) {
+    await emitAutomationEvent({
+      type: "task.created",
+      workspaceId,
+      sourceId: task.id,
+      summary: `Task event: "${task.title}" was created`,
+      metadata: {
+        taskId: task.id,
+        leadId: task.leadId,
+        ticketId: task.ticketId,
+        priority: task.priority,
+      },
+    })
+  }
+
+  return task
 }
 
 export async function deleteTask(workspaceId: string, taskId: string) {

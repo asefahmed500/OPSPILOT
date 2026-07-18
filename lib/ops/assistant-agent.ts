@@ -5,6 +5,7 @@ import { createLead } from "@/lib/ops/lead"
 import { createReport } from "@/lib/ops/reports"
 import { createTicket } from "@/lib/ops/support"
 import { createTask, taskFromPrompt } from "@/lib/ops/tasks"
+import { emitAutomationEvent } from "@/lib/ops/events"
 import type { AssistantPlan } from "@/lib/ops/assistant-planning"
 
 type MarketingEmailGenerator = (input: {
@@ -108,6 +109,15 @@ export async function executeAssistantPlan({
         workflowName: action.subject ?? "OpsPilot assistant email",
         subject: action.subject ?? generatedEmail.subject,
         body: generatedEmail.body,
+      })
+      await emitAutomationEvent({
+        type: "customer.email.sent",
+        workspaceId,
+        customerEmail: action.email,
+        customerName: action.name,
+        company: action.company,
+        summary: `Email event: assistant sent customer email to ${action.email}`,
+        metadata: { subject: action.subject ?? generatedEmail.subject },
       })
 
       steps.push({ tool: "email.send", status: "completed", summary: `Sent customer email to ${action.email}.`, verifyHref: "/app/settings" })
