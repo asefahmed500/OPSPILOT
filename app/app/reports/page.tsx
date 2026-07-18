@@ -68,6 +68,57 @@ function outputParameters(output: unknown) {
   ].filter((parameter): parameter is [string, string] => Boolean(parameter[1]))
 }
 
+function outputRunSteps(output: unknown) {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return []
+  }
+
+  const steps = (output as Record<string, unknown>).steps
+
+  if (!Array.isArray(steps)) {
+    return []
+  }
+
+  return steps
+    .filter((step): step is Record<string, unknown> => Boolean(step) && typeof step === "object" && !Array.isArray(step))
+    .map((step, index) => ({
+      id: `output-step-${index}`,
+      tool: typeof step.tool === "string" ? step.tool : "automation.step",
+      status: typeof step.status === "string" ? step.status : "SKIPPED",
+      summary: typeof step.summary === "string" ? step.summary : "Automation step recorded in workflow output.",
+    }))
+}
+
+async function getAutomationStepCounts(workspaceId: string) {
+  const client = db as unknown as {
+    automationRunStep?: {
+      count: (args: { where: { workspaceId: string; status: "SUCCESS" | "FAILED" | "SKIPPED" } }) => Promise<number>
+    }
+  }
+
+  if (!client.automationRunStep) {
+    const runs = await db.workflowRun.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: { output: true },
+    })
+    const steps = runs.flatMap((run) => outputRunSteps(run.output))
+
+    return [
+      steps.filter((step) => step.status === "SUCCESS").length,
+      steps.filter((step) => step.status === "FAILED").length,
+      steps.filter((step) => step.status === "SKIPPED").length,
+    ] as const
+  }
+
+  return Promise.all([
+    client.automationRunStep.count({ where: { workspaceId, status: "SUCCESS" } }),
+    client.automationRunStep.count({ where: { workspaceId, status: "FAILED" } }),
+    client.automationRunStep.count({ where: { workspaceId, status: "SKIPPED" } }),
+  ])
+}
+
 export default async function ReportsPage() {
   const user = await requireUser()
   const workspace = await requireWorkspace(user.id)
@@ -87,11 +138,7 @@ export default async function ReportsPage() {
         steps: { orderBy: { createdAt: "asc" } },
       },
     }),
-    Promise.all([
-      db.automationRunStep.count({ where: { workspaceId: workspace.id, status: "SUCCESS" } }),
-      db.automationRunStep.count({ where: { workspaceId: workspace.id, status: "FAILED" } }),
-      db.automationRunStep.count({ where: { workspaceId: workspace.id, status: "SKIPPED" } }),
-    ]),
+    getAutomationStepCounts(workspace.id),
   ])
   const [successfulSteps, failedSteps, skippedSteps] = automationStepCounts
   const totalSteps = successfulSteps + failedSteps + skippedSteps
@@ -142,13 +189,14 @@ export default async function ReportsPage() {
             {workflowRuns.map((run) => {
               const actions = outputActions(run.output)
               const parameters = outputParameters(run.output)
+              const auditSteps = run.steps.length ? run.steps : outputRunSteps(run.output)
 
               return (
                 <div key={run.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="font-medium text-slate-950">{run.workflow.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">{run.workflow.trigger} · {formatDate(run.createdAt)}</p>
+                      <p className="mt-1 text-xs text-slate-500">{run.workflow.trigger} - {formatDate(run.createdAt)}</p>
                     </div>
                     <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${statusClass(run.status)}`}>{run.status}</span>
                   </div>
@@ -165,7 +213,7 @@ export default async function ReportsPage() {
                                 <p key={value} className="mt-1 truncate text-xs text-slate-500">{value}</p>
                               ))}
                             </div>
-                            {index < actions.length - 1 ? <span className="text-slate-300">→</span> : null}
+                            {index < actions.length - 1 ? <span className="text-slate-300">-&gt;</span> : null}
                           </div>
                         ))}
                       </div>
@@ -184,7 +232,7 @@ export default async function ReportsPage() {
                   ) : null}
 
                   <div className="mt-4 space-y-2">
-                    {run.steps.length ? run.steps.map((step) => (
+                    {auditSteps.length ? auditSteps.map((step) => (
                       <div key={step.id} className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2">
                         <div>
                           <p className="text-sm font-medium text-slate-950">{step.tool}</p>
@@ -231,7 +279,7 @@ export default async function ReportsPage() {
                     <BulkDeleteCheckbox id={report.id} label="report" />
                     <div>
                       <p className="font-medium">{report.title}</p>
-                      <p className="mt-1 text-xs text-slate-500">{formatDate(report.createdAt)} · {report.period}</p>
+                      <p className="mt-1 text-xs text-slate-500">{formatDate(report.createdAt)} - {report.period}</p>
                     </div>
                   </div>
                   <DeleteResourceButton endpoint={`/api/reports/${report.id}`} label="report" />

@@ -1,4 +1,5 @@
 import { AssistantChat } from "@/components/app/assistant-chat"
+import { AssistantGuideCard } from "@/components/app/assistant-guide-card"
 import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
@@ -66,6 +67,8 @@ export default async function AssistantPage() {
         />
 
         <aside className="space-y-4">
+          <AssistantGuideCard />
+
           <section className="op-panel p-5">
             <p className="text-sm font-semibold">Slash command guide</p>
             <div className="mt-4 space-y-2">
