@@ -9,6 +9,28 @@ type SyncedEmail = {
   uid: number
   from: string
   subject: string
+  duplicate?: boolean
+}
+
+const SYNC_TIMEOUT_MS = 25_000
+
+function timeoutError(message: string) {
+  return new AppError(message, 504, "IMAP_SYNC_TIMEOUT")
+}
+
+async function withTimeout<T>(promise: Promise<T>, message: string, timeoutMs = SYNC_TIMEOUT_MS) {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const timer = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(timeoutError(message)), timeoutMs)
+  })
+
+  try {
+    return await Promise.race([promise, timer])
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout)
+    }
+  }
 }
 
 function plainTextFromMessage(message: { text?: string; html?: string | false }) {
@@ -49,19 +71,34 @@ export async function syncSupportInbox(workspaceId: string) {
     secure: env.IMAP_SECURE,
     auth,
     logger: false,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 25_000,
   })
   const synced: SyncedEmail[] = []
   const skipped: { uid: number; reason: string }[] = []
 
-  await client.connect()
+  try {
+    await withTimeout(client.connect(), "Gmail IMAP connection timed out. Check IMAP is enabled and the app password is valid.", 15_000)
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error
+    }
+
+    throw new AppError(
+      error instanceof Error ? `Gmail IMAP connection failed: ${error.message}` : "Gmail IMAP connection failed",
+      502,
+      "IMAP_CONNECTION_FAILED"
+    )
+  }
 
   try {
-    const lock = await client.getMailboxLock("INBOX")
+    const lock = await withTimeout(client.getMailboxLock("INBOX", { acquireTimeout: 10_000 }), "Timed out opening the Gmail inbox.", 12_000)
 
     try {
-      const unseen = await client.search({ seen: false })
-      const unseenUids = unseen || []
-      const limited = unseenUids.slice(-25)
+      const searchResult = await withTimeout(client.search({ all: true }, { uid: true }), "Timed out searching Gmail inbox.", 12_000)
+      const recentUids = searchResult || []
+      const limited = recentUids.slice(-35)
 
       if (!limited.length) {
         return { synced, skipped }
@@ -69,8 +106,9 @@ export async function syncSupportInbox(workspaceId: string) {
 
       for await (const message of client.fetch(limited, {
         uid: true,
+        flags: true,
       })) {
-        const parsed = await client.download(message.uid, undefined, { uid: true })
+        const parsed = await withTimeout(client.download(message.uid, undefined, { uid: true }), "Timed out downloading a Gmail message.", 12_000)
         const chunks: Buffer[] = []
 
         for await (const chunk of parsed.content) {
@@ -94,9 +132,13 @@ export async function syncSupportInbox(workspaceId: string) {
           continue
         }
 
-        await ingestInboundEmail(workspaceId, { from, subject, body })
-        await client.messageFlagsAdd(message.uid, ["\\Seen"], { uid: true })
-        synced.push({ uid: message.uid, from, subject })
+        const result = await ingestInboundEmail(workspaceId, { from, subject, body })
+
+        if (!message.flags?.has("\\Seen")) {
+          await client.messageFlagsAdd(message.uid, ["\\Seen"], { uid: true })
+        }
+
+        synced.push({ uid: message.uid, from, subject, duplicate: "duplicate" in result && Boolean(result.duplicate) })
       }
     } finally {
       lock.release()

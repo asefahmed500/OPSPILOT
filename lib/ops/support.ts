@@ -123,13 +123,26 @@ export async function handleCustomerReply(
     throw new AppError("Ticket not found", 404, "TICKET_NOT_FOUND")
   }
 
-  const reply = await draftCustomerReply(ticket, body)
+  const normalizedBody = body.trim()
+  const duplicateMessage = ticket.messages.some((message) => !message.fromAgent && message.body.trim() === normalizedBody)
+
+  if (duplicateMessage) {
+    return {
+      ticket,
+      task: null,
+      reply: ticket.aiDraft ?? "",
+      needsConfirmation: Boolean(ticket.aiDraft),
+      duplicate: true,
+    }
+  }
+
+  const reply = await draftCustomerReply(ticket, normalizedBody)
 
   return db.$transaction(async (tx) => {
     const customerMessage = await tx.ticketMessage.create({
       data: {
         ticketId: ticket.id,
-        body,
+        body: normalizedBody,
         fromAgent: false,
       },
     })
@@ -146,7 +159,7 @@ export async function handleCustomerReply(
     const task = await tx.task.create({
       data: {
         title: `Follow up support reply: ${ticket.subject}`,
-        description: body,
+        description: normalizedBody,
         priority: ticket.priority,
         ticketId: ticket.id,
         workspaceId,
@@ -257,6 +270,7 @@ export async function ingestInboundEmail(
 ) {
   const from = input.from.toLowerCase().trim()
   const subject = input.subject.trim()
+  const body = input.body.trim()
   const normalizedSubject = normalizeSubject(subject)
   const tickets = await db.ticket.findMany({
     where: {
@@ -272,7 +286,7 @@ export async function ingestInboundEmail(
     tickets[0]
 
   if (existingTicket) {
-    const result = await handleCustomerReply(workspaceId, existingTicket.id, input.body)
+    const result = await handleCustomerReply(workspaceId, existingTicket.id, body)
 
     await db.activityLog.create({
       data: {
@@ -289,10 +303,10 @@ export async function ingestInboundEmail(
   const ticket = await createTicket(workspaceId, {
     subject,
     customerEmail: from,
-    body: input.body,
+    body,
     channel: "EMAIL",
   })
-  const reply = await draftCustomerReply(ticket, input.body)
+  const reply = await draftCustomerReply(ticket, body)
   const result = await db.$transaction(async (tx) => {
     const updatedTicket = await tx.ticket.update({
       where: { id: ticket.id },
@@ -306,7 +320,7 @@ export async function ingestInboundEmail(
     const task = await tx.task.create({
       data: {
         title: `Review inbound email: ${ticket.subject}`,
-        description: input.body,
+        description: body,
         priority: ticket.priority,
         ticketId: ticket.id,
         workspaceId,

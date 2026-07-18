@@ -20,7 +20,7 @@ export default async function SupportPage() {
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <div>
         <h1 className="text-3xl font-semibold">Support</h1>
-        <p className="mt-2 text-slate-600">Classify tickets, draft responses, and flag escalations.</p>
+        <p className="mt-2 text-slate-600">Sync Gmail replies, classify tickets, draft responses, and flag escalations.</p>
         <div className="mt-6">
           <ActionForm kind="ticket" endpoint="/api/support/tickets" submitLabel="Create ticket" successLabel="Ticket created" />
         </div>
