@@ -29,16 +29,7 @@ function workflowActionLabels(actions: unknown) {
     .map((action) => `${action.label}${action.email ? ` -> ${action.email}` : ""}`)
 }
 
-function workflowRunSteps(output: unknown, persistedSteps?: { id: string; tool: string; status: string; summary: string }[]) {
-  if (persistedSteps?.length) {
-    return persistedSteps.map((step) => ({
-      key: step.id,
-      tool: step.tool,
-      status: step.status,
-      summary: step.summary,
-    }))
-  }
-
+function workflowRunSteps(output: unknown) {
   if (!output || typeof output !== "object" || Array.isArray(output)) {
     return []
   }
@@ -60,7 +51,7 @@ export default async function WorkflowsPage() {
   const workflows = await db.workflow.findMany({
     where: { workspaceId: workspace.id },
     orderBy: { createdAt: "desc" },
-    include: { runs: { orderBy: { createdAt: "desc" }, take: 1, include: { steps: { orderBy: { createdAt: "asc" } } } } },
+    include: { runs: { orderBy: { createdAt: "desc" }, take: 1 } },
   })
 
   return (
@@ -104,9 +95,9 @@ export default async function WorkflowsPage() {
               {workflow.runs[0]?.output ? (
                 <div className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600">
                   <p className="font-semibold text-slate-900">{workflowOutputValue(workflow.runs[0].output, "message") ?? "Workflow run completed."}</p>
-                  {workflowRunSteps(workflow.runs[0].output, workflow.runs[0].steps).length ? (
+                  {workflowRunSteps(workflow.runs[0].output).length ? (
                     <div className="mt-3 space-y-2">
-                      {workflowRunSteps(workflow.runs[0].output, workflow.runs[0].steps).map((step) => (
+                      {workflowRunSteps(workflow.runs[0].output).map((step) => (
                         <div key={step.key} className="flex gap-2 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
                           <span className="shrink-0 font-semibold text-slate-900">{step.status}</span>
                           <span>{step.summary}</span>

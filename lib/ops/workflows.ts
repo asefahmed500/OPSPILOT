@@ -35,6 +35,24 @@ function stepData(step: WorkflowStepRecord, workflowRunId: string, workspaceId: 
   }
 }
 
+async function createAutomationStep(step: WorkflowStepRecord, workflowRunId: string, workspaceId: string) {
+  const client = db as unknown as {
+    automationRunStep?: {
+      create: (args: { data: ReturnType<typeof stepData> }) => Promise<unknown>
+    }
+  }
+
+  if (!client.automationRunStep) {
+    return
+  }
+
+  await client.automationRunStep.create({ data: stepData(step, workflowRunId, workspaceId) }).catch(() => undefined)
+}
+
+async function createAutomationSteps(steps: WorkflowStepRecord[], workflowRunId: string, workspaceId: string) {
+  await Promise.all(steps.map((step) => createAutomationStep(step, workflowRunId, workspaceId)))
+}
+
 function withWorkflowCustomerFields(actions: WorkflowAction[], fields?: WorkflowCustomerFields) {
   const customerEmail = fields?.customerEmail?.toLowerCase().trim()
   const customerName = fields?.customerName?.trim()
@@ -173,15 +191,11 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
         },
       },
     })
-    await db.automationRunStep.create({
-      data: {
-        tool: "email.validateRecipient",
-        status: "SKIPPED",
-        summary: "Email action skipped because the workflow prompt has no customer email.",
-        workflowRunId: skippedRun.id,
-        workspaceId,
-      },
-    })
+    await createAutomationStep({
+      tool: "email.validateRecipient",
+      status: "SKIPPED",
+      summary: "Email action skipped because the workflow prompt has no customer email.",
+    }, skippedRun.id, workspaceId)
 
     await db.activityLog.create({
       data: {
@@ -192,10 +206,7 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
       },
     })
 
-    return db.workflowRun.findUniqueOrThrow({
-      where: { id: skippedRun.id },
-      include: { steps: { orderBy: { createdAt: "asc" } } },
-    })
+    return skippedRun
   }
 
   const createdLead = executableActions.some((action) => action.type === "create_crm_record")
@@ -279,14 +290,6 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
       },
     })
 
-    if (steps.length) {
-      await tx.automationRunStep.createMany({
-        data: steps.map((step) => ({
-          ...stepData(step, workflowRun.id, workspaceId),
-        })),
-      })
-    }
-
     await tx.activityLog.create({
       data: {
         type: "workflow.run",
@@ -296,11 +299,12 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
       },
     })
 
-    return tx.workflowRun.findUniqueOrThrow({
-      where: { id: workflowRun.id },
-      include: { steps: { orderBy: { createdAt: "asc" } } },
-    })
+    return workflowRun
   })
+
+  if (steps.length) {
+    await createAutomationSteps(steps, run.id, workspaceId)
+  }
 
   if (!shouldSendEmail) {
     return run
@@ -347,18 +351,14 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
           ],
           message: "Internal actions executed; workflow email sent.",
         },
-        steps: {
-          create: {
-            tool: "email.send",
-            status: "SUCCESS",
-            summary: `Sent customer email to ${recipientEmail}.`,
-            metadata: { recipientEmail },
-            workspaceId,
-          },
-        },
       },
-      include: { steps: { orderBy: { createdAt: "asc" } } },
     })
+    await createAutomationStep({
+      tool: "email.send",
+      status: "SUCCESS",
+      summary: `Sent customer email to ${recipientEmail}.`,
+      metadata: { recipientEmail },
+    }, run.id, workspaceId)
 
     return updatedRun
   } catch (error) {
@@ -375,18 +375,14 @@ export async function runWorkflow(workspaceId: string, workflowId: string) {
           message: "Workflow email action failed.",
           error: error instanceof Error ? error.message : "Unknown email error",
         },
-        steps: {
-          create: {
-            tool: "email.send",
-            status: "FAILED",
-            summary: "Workflow email action failed.",
-            metadata: { error: error instanceof Error ? error.message : "Unknown email error" },
-            workspaceId,
-          },
-        },
       },
-      include: { steps: { orderBy: { createdAt: "asc" } } },
     })
+    await createAutomationStep({
+      tool: "email.send",
+      status: "FAILED",
+      summary: "Workflow email action failed.",
+      metadata: { error: error instanceof Error ? error.message : "Unknown email error" },
+    }, run.id, workspaceId)
 
     return failedRun
   }

@@ -12,6 +12,7 @@ const client = aiApiKey
   ? new OpenAI({
       apiKey: aiApiKey,
       baseURL: env.AI_API_BASE_URL,
+      timeout: 20_000,
     })
   : null
 
@@ -50,19 +51,39 @@ function extractJsonObject(text: string) {
   return text.slice(start, end + 1)
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number) {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`AI request timed out after ${ms}ms`)), ms)
+      }),
+    ])
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout)
+    }
+  }
+}
+
 export async function generateAiText(system: string, prompt: string) {
   if (!client) {
     return null
   }
 
-  const response = await client.chat.completions.create({
-    model: aiModel,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: prompt },
-    ],
-    temperature: 0.2,
-  })
+  const response = await withTimeout(
+    client.chat.completions.create({
+      model: aiModel,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.2,
+    }),
+    20_000
+  )
 
   return response.choices[0]?.message?.content ?? null
 }

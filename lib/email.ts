@@ -11,6 +11,9 @@ function createSmtpTransporter() {
     host: env.SMTP_HOST,
     port: env.SMTP_PORT ?? 587,
     secure: env.SMTP_SECURE ?? false,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
     disableFileAccess: true,
     disableUrlAccess: true,
     auth: {

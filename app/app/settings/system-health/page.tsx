@@ -3,6 +3,22 @@ import { db } from "@/lib/db"
 import { env } from "@/lib/env"
 import { requireWorkspace } from "@/lib/workspace"
 
+function workflowRunSteps(output: unknown) {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return []
+  }
+
+  const steps = (output as Record<string, unknown>).steps
+
+  if (!Array.isArray(steps)) {
+    return []
+  }
+
+  return steps
+    .filter((step): step is { tool: string; status: string; summary: string } => Boolean(step) && typeof step === "object" && typeof (step as { tool?: unknown }).tool === "string" && typeof (step as { summary?: unknown }).summary === "string")
+    .map((step, index) => ({ key: `${step.tool}-${index}`, tool: step.tool, status: step.status ?? "UNKNOWN", summary: step.summary }))
+}
+
 function HealthCard({
   label,
   status,
@@ -35,7 +51,7 @@ export default async function SystemHealthPage() {
   const [failedWorkflowRuns, recentActivity, latestRun] = await Promise.all([
     db.workflowRun.count({ where: { workspaceId: workspace.id, status: "FAILED" } }),
     db.activityLog.findMany({ where: { workspaceId: workspace.id }, orderBy: { createdAt: "desc" }, take: 8 }),
-    db.workflowRun.findFirst({ where: { workspaceId: workspace.id }, orderBy: { createdAt: "desc" }, include: { steps: { orderBy: { createdAt: "asc" } } } }),
+    db.workflowRun.findFirst({ where: { workspaceId: workspace.id }, orderBy: { createdAt: "desc" } }),
   ])
 
   const smtpConfigured = Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS && env.SMTP_FROM)
@@ -65,10 +81,10 @@ export default async function SystemHealthPage() {
                 <p className="font-medium">Status: {latestRun.status}</p>
                 <p className="mt-1 text-slate-500">{latestRun.createdAt.toLocaleString()}</p>
               </div>
-              {latestRun.steps.length ? (
+              {workflowRunSteps(latestRun.output).length ? (
                 <div className="space-y-2">
-                  {latestRun.steps.map((step) => (
-                    <div key={step.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                  {workflowRunSteps(latestRun.output).map((step) => (
+                    <div key={step.key} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
                       <p className="font-medium">{step.tool} · {step.status}</p>
                       <p className="mt-1 text-slate-600">{step.summary}</p>
                     </div>
