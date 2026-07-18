@@ -7,6 +7,7 @@ import { env } from "@/lib/env"
 import { verifyPassword } from "@/lib/security"
 import { AppError } from "@/lib/errors"
 import { assertRateLimit } from "@/lib/rate-limit"
+import { decodeAuthJwt, encodeAuthJwt } from "@/lib/auth-jwt"
 
 process.env.NEXTAUTH_URL ??= env.NEXTAUTH_URL ?? env.NEXT_PUBLIC_APP_URL
 process.env.NEXTAUTH_SECRET ??= env.NEXTAUTH_SECRET ?? env.AUTH_JWT_SECRET
@@ -16,6 +17,10 @@ const authSecret = env.NEXTAUTH_SECRET ?? env.AUTH_JWT_SECRET
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
+  },
+  jwt: {
+    encode: encodeAuthJwt,
+    decode: decodeAuthJwt,
   },
   secret: authSecret,
   pages: {
