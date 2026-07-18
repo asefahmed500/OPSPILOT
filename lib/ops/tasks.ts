@@ -1,6 +1,7 @@
 import "server-only"
 import { db } from "@/lib/db"
 import { taskFromPrompt } from "@/lib/ops/rules"
+import { AppError } from "@/lib/errors"
 
 export { taskFromPrompt }
 
@@ -41,4 +42,32 @@ export async function createTask(
 
     return task
   })
+}
+
+export async function deleteTask(workspaceId: string, taskId: string) {
+  const task = await db.task.findFirst({
+    where: { id: taskId, workspaceId },
+    select: { id: true, title: true },
+  })
+
+  if (!task) {
+    throw new AppError("Task not found", 404, "TASK_NOT_FOUND")
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.task.delete({
+      where: { id: task.id },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        type: "task.deleted",
+        message: `Deleted task "${task.title}"`,
+        metadata: { taskId: task.id },
+        workspaceId,
+      },
+    })
+  })
+
+  return { deleted: true }
 }
