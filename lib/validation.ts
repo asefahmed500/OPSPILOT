@@ -50,6 +50,10 @@ export const ticketSchema = z.object({
   channel: z.enum(["WEBSITE_CHAT", "EMAIL", "WHATSAPP", "SLACK", "DISCORD"]),
 })
 
+export const ticketReplySchema = z.object({
+  body: text("Customer reply is required", 2000),
+})
+
 export const workflowSchema = z.object({
   name: optionalText(120),
   prompt: text("Describe the workflow", 2000),

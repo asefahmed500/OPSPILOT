@@ -83,3 +83,22 @@ export async function sendWorkflowEmail({
     ].join("\n"),
   })
 }
+
+export async function sendCustomerEmail({
+  to,
+  subject,
+  body,
+}: {
+  to: string
+  subject: string
+  body: string
+}) {
+  const transporter = createSmtpTransporter()
+
+  return transporter.sendMail({
+    from: env.SMTP_FROM,
+    to,
+    subject,
+    text: body,
+  })
+}

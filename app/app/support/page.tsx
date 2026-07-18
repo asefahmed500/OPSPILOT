@@ -2,6 +2,7 @@ import { ActionForm } from "@/components/app/action-form"
 import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
+import { CustomerReplyForm } from "@/components/app/customer-reply-form"
 
 export default async function SupportPage() {
   const user = await requireUser()
@@ -31,6 +32,15 @@ export default async function SupportPage() {
               </div>
               <p className="mt-3 text-sm text-slate-600">{ticket.aiDraft}</p>
               <p className="mt-2 text-xs text-slate-500">{ticket.status}{ticket.escalated ? " - escalated" : ""}</p>
+              <div className="mt-4 space-y-2">
+                {ticket.messages.slice(-3).map((message) => (
+                  <div key={message.id} className={`rounded-md border px-3 py-2 text-xs leading-5 ${message.fromAgent ? "border-blue-100 bg-blue-50 text-blue-900" : "border-slate-200 bg-white text-slate-600"}`}>
+                    <p className="mb-1 font-semibold">{message.fromAgent ? "OpsPilot reply" : "Customer"}</p>
+                    {message.body}
+                  </div>
+                ))}
+              </div>
+              <CustomerReplyForm ticketId={ticket.id} />
             </div>
           ))}
           {!tickets.length ? <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No support tickets yet.</p> : null}
