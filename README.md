@@ -31,7 +31,11 @@ AI_API_BASE_URL="https://api.hcnsec.cn/v1"
 AI_API_KEY=""
 HCNSEC_API_KEY=""
 AI_MODEL="DeepSeek-V4-Flash"
+AI_GATEWAY_API_KEY=""
+AI_GATEWAY_MODEL="openai/gpt-5.4-mini"
 ```
+
+The AI agent team uses the Vercel AI SDK Gateway. Set `AI_API_KEY` or `AI_GATEWAY_API_KEY` to the Gateway key; `AI_API_KEY` is accepted as the shared key for all specialized agents.
 
 Rotate any credentials that were pasted into chat before deploying or sharing the repo.
 

@@ -10,6 +10,7 @@ import {
   BulkDeleteProvider,
   BulkDeleteToolbar,
 } from "@/components/app/bulk-delete"
+import { AgentPromptLink } from "@/components/app/agent-prompt-link"
 
 function workflowOutputValue(
   output: unknown,
@@ -89,7 +90,13 @@ export default async function WorkflowsPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
       <div>
-        <h1 className="text-3xl font-semibold">Workflows</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-semibold">Workflows</h1>
+          <AgentPromptLink
+            label="Use Workflow Agent"
+            prompt="/workflow when a new lead is created, create follow-up task, send a warm email, and generate weekly report"
+          />
+        </div>
         <p className="mt-2 text-slate-600">
           Describe an automation and OpsPilot converts it into trigger/actions.
         </p>

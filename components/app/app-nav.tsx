@@ -2,18 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  Bot,
-  ClipboardList,
-  Database,
-  Headphones,
-  Home,
-  LineChart,
-  MessageSquare,
-  Settings,
-  Workflow,
-  type LucideIcon,
-} from "lucide-react"
+import { ArrowRight, Bot, ClipboardList, Database, Headphones, Home, LineChart, MessageSquare, Sparkles, Settings, Workflow, type LucideIcon } from "lucide-react"
+import { assistantPromptHref, opsPilotAgentTeam } from "@/lib/agents/agent-team"
 import { cn } from "@/lib/utils"
 
 export type AppNavItem = {
@@ -72,6 +62,30 @@ export function DesktopNav() {
         )
       })}
     </nav>
+  )
+}
+
+export function SidebarAutomationLaunchers() {
+  return (
+    <section className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+        <Sparkles className="size-3.5" aria-hidden="true" />
+        Agent Team
+      </div>
+      <div className="mt-3 space-y-1.5">
+        {opsPilotAgentTeam.map(({ label, prompt }) => (
+          <Link
+            key={label}
+            href={assistantPromptHref(prompt)}
+            className="group flex min-h-10 items-center gap-2 rounded-md border border-transparent bg-white px-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-200 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950/20"
+          >
+            <Sparkles className="size-4 shrink-0 text-slate-500" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+            <ArrowRight className="size-3.5 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-700" aria-hidden="true" />
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }
 

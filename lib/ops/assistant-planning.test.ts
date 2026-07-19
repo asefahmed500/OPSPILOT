@@ -73,4 +73,38 @@ describe("assistant natural-language fallback planner", () => {
       ])
     )
   })
+
+  it("routes a specialized support agent request to email, CRM, task, ticket, and report actions", () => {
+    const plan = fallbackAssistantPlan(
+      "/agent as support agent write warm email to jane@example.com, create support ticket, follow-up task, CRM lead, and weekly report"
+    )
+
+    expect(plan.actions.map((action) => action.type)).toEqual([
+      "send_email",
+      "create_lead",
+      "create_task",
+      "create_ticket",
+      "create_report",
+    ])
+    expect(plan.actions[0]).toMatchObject({
+      type: "send_email",
+      email: "jane@example.com",
+      persona: "support agent",
+      tone: "friendly",
+    })
+  })
+
+  it("extracts the full customer name and clean topic from a rough email command", () => {
+    const plan = fallbackAssistantPlan(
+      "send a mail to Customer Name Asef Ahmed mail is asefahmed500@gmail.com . The topics will be send him congratulations for working hard with professonal tone"
+    )
+
+    expect(plan.actions[0]).toMatchObject({
+      type: "send_email",
+      email: "asefahmed500@gmail.com",
+      name: "Asef Ahmed",
+      tone: "professional",
+      body: "congratulations for working hard",
+    })
+  })
 })

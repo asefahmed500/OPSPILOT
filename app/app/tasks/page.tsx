@@ -8,6 +8,7 @@ import {
   BulkDeleteProvider,
   BulkDeleteToolbar,
 } from "@/components/app/bulk-delete"
+import { AgentPromptLink } from "@/components/app/agent-prompt-link"
 
 export default async function TasksPage() {
   const user = await requireUser()
@@ -21,7 +22,13 @@ export default async function TasksPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <div>
-        <h1 className="text-3xl font-semibold">Tasks</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-semibold">Tasks</h1>
+          <AgentPromptLink
+            label="Use Task Agent"
+            prompt="/agent turn this request into a prioritized task: follow up with customer@example.com about OpsPilot demo next week"
+          />
+        </div>
         <p className="mt-2 text-slate-600">
           Track generated and manual operational work.
         </p>

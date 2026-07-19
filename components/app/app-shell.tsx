@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react"
-import { AppBrand, DesktopNav, MobileNav } from "@/components/app/app-nav"
+import { AppBrand, DesktopNav, MobileNav, SidebarAutomationLaunchers } from "@/components/app/app-nav"
 import { LogoutButton } from "@/components/app/logout-button"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -27,8 +27,9 @@ export function AppShell({
       >
         <AppBrand />
         <DesktopNav />
+        <SidebarAutomationLaunchers />
         <div className="absolute bottom-4 left-4 right-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-          Internal CRM, support, tasks, workflows, reports, AI, and email actions use your workspace configuration.
+          AI email, CRM, support, task, workflow, and report automations run through your workspace safety checks.
         </div>
       </aside>
 

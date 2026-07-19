@@ -13,6 +13,7 @@ import {
   BulkDeleteProvider,
   BulkDeleteToolbar,
 } from "@/components/app/bulk-delete"
+import { AgentPromptLink } from "@/components/app/agent-prompt-link"
 
 export default async function SupportPage() {
   const user = await requireUser()
@@ -27,7 +28,13 @@ export default async function SupportPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <div>
-        <h1 className="text-3xl font-semibold">Support</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-semibold">Support</h1>
+          <AgentPromptLink
+            label="Use Support Agent"
+            prompt="/agent as support agent create support ticket for customer@example.com, draft a warm reply, and create follow-up task"
+          />
+        </div>
         <p className="mt-2 text-slate-600">
           Sync Gmail replies, classify tickets, draft responses, and flag
           escalations.

@@ -8,6 +8,7 @@ import {
   BulkDeleteProvider,
   BulkDeleteToolbar,
 } from "@/components/app/bulk-delete"
+import { AgentPromptLink } from "@/components/app/agent-prompt-link"
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en", {
@@ -232,7 +233,13 @@ export default async function ReportsPage() {
   return (
     <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
       <div className="space-y-6">
-        <h1 className="text-3xl font-semibold">Reports</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-semibold">Reports</h1>
+          <AgentPromptLink
+            label="Use Report Agent"
+            prompt="/agent generate weekly report and create follow-up tasks for unresolved leads, tickets, and workflow failures"
+          />
+        </div>
         <p className="mt-2 text-slate-600">
           Generate reports and inspect the live automation audit trail.
         </p>

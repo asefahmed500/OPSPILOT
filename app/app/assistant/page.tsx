@@ -3,13 +3,7 @@ import { AssistantGuideCard } from "@/components/app/assistant-guide-card"
 import { requireUser } from "@/lib/auth"
 import { requireWorkspace } from "@/lib/workspace"
 import { db } from "@/lib/db"
-
-const automationSurfaces = [
-  ["CRM", "Creates qualified leads from customer commands and email recipients."],
-  ["Tasks", "Adds follow-up work tied to leads or support tickets."],
-  ["Support", "Creates tickets and drafts human-reviewed replies."],
-  ["Reports", "Summarizes workspace activity from real database records."],
-]
+import { opsPilotAgentTeam } from "@/lib/agents/agent-team"
 
 export default async function AssistantPage() {
   const user = await requireUser()
@@ -61,12 +55,13 @@ export default async function AssistantPage() {
           <AssistantGuideCard />
 
           <section className="op-panel p-5">
-            <p className="text-sm font-semibold">What the agent updates</p>
+            <p className="text-sm font-semibold">Specialized agents available</p>
             <div className="mt-4 space-y-3">
-              {automationSurfaces.map(([name, description]) => (
-                <div key={name} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                  <p className="text-sm font-semibold text-slate-950">{name}</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+              {opsPilotAgentTeam.map((agent) => (
+                <div key={agent.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-sm font-semibold text-slate-950">{agent.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{agent.responsibility}</p>
+                  <p className="mt-2 text-xs font-medium text-slate-600">{agent.safeTools}</p>
                 </div>
               ))}
             </div>

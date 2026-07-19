@@ -51,10 +51,16 @@ export function titleCaseFromEmail(email: string | undefined) {
 }
 
 function cleanPromptTopic(message: string) {
-  return message
+  const explicitTopic = message.match(/\b(?:topics?|body|message)\s+(?:will be|is|should be|should|:)\s+(.+?)(?=\s+with\s+(?:a\s+)?(?:professional|professonal|friendly|warm|formal|casual|polished|direct|persuasive)\s+tone|[.!?]|$)/i)?.[1]
+
+  return (explicitTopic ?? message)
     .replace(/^\/(email|mail|workflow|agent)\s*/i, "")
     .replace(emailPattern, "")
+    .replace(/\b(?:mail|email)\s+is\s*$/gi, " ")
+    .replace(/\b(?:mail|email)\s+is\b/gi, " ")
+    .replace(/\b(?:to|for)\s+customer\s+name\s+[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,4}\b/g, " ")
     .replace(/\b(send|sent|email|mail|meil|emsil)\b/gi, " ")
+    .replace(/\b(?:him|her|them)\b\s*/gi, " ")
     .replace(/\b(to|for)\s*$/gi, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -67,9 +73,10 @@ function inferCompany(message: string) {
 }
 
 function inferName(message: string, email: string | undefined) {
-  const explicitName = message.match(/\b(?:to|for|customer|client|person|lead)\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2})\b/)?.[1]
+  const customerName = message.match(/\bcustomer\s+name\s+(?:is\s+)?([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,4})(?=\s+(?:mail|email|is|about|and|the\s+topics?|topics?|topic|,|\.|$))/i)?.[1]
+  const explicitName = customerName ?? message.match(/\b(?:to|for|customer|client|person|lead)\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,3})\b/)?.[1]
 
-  return explicitName ?? titleCaseFromEmail(email)
+  return explicitName?.replace(/\s+(?:mail|email)$/i, "").trim() ?? titleCaseFromEmail(email)
 }
 
 function inferPersona(message: string) {
@@ -92,6 +99,10 @@ function inferTone(message: string) {
   }
 
   if (hasAny(lower, ["professional", "formal", "polished"])) {
+    return "professional"
+  }
+
+  if (hasAny(lower, ["professonal", "pro tone"])) {
     return "professional"
   }
 

@@ -106,8 +106,8 @@ export async function executeAssistantPlan({
 
       await sendWorkflowEmail({
         to: action.email,
-        workflowName: action.subject ?? "OpsPilot assistant email",
-        subject: action.subject ?? generatedEmail.subject,
+        workflowName: generatedEmail.subject,
+        subject: generatedEmail.subject,
         body: generatedEmail.body,
       })
       await emitAutomationEvent({
@@ -117,7 +117,7 @@ export async function executeAssistantPlan({
         customerName: action.name,
         company: action.company,
         summary: `Email event: assistant sent customer email to ${action.email}`,
-        metadata: { subject: action.subject ?? generatedEmail.subject },
+        metadata: { subject: generatedEmail.subject },
       })
 
       steps.push({ tool: "email.send", status: "completed", summary: `Sent customer email to ${action.email}.`, verifyHref: "/app/settings" })

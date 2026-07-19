@@ -38,6 +38,8 @@ const envSchema = z.object({
   AI_API_KEY: z.string().optional(),
   HCNSEC_API_KEY: z.string().optional(),
   AI_MODEL: z.string().default("DeepSeek-V4-Flash"),
+  AI_GATEWAY_API_KEY: z.string().optional(),
+  AI_GATEWAY_MODEL: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().optional(),
   INBOUND_EMAIL_WEBHOOK_SECRET: z.string().min(16).optional(),

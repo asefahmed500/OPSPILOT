@@ -1,36 +1,26 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { MessageSquare, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { opsPilotAgentTeam } from "@/lib/agents/agent-team"
 import { assistantSchema } from "@/lib/validation"
 
 const suggestionSteps = [
   {
-    label: "Choose a goal",
-    hint: "Start with what you want OpsPilot to do.",
+    label: "Choose an agent",
+    hint: "Start with the specialist that matches the work.",
     options: [
-      {
-        label: "Send email",
-        prompt: "/email as founder write a friendly email for SaaS owners about OpsPilot automation, send to customer@example.com, ask them to book a demo",
-      },
-      {
-        label: "Run agent",
-        prompt: "/agent as account manager write a professional email about reducing manual work, send to customer@example.com, create CRM lead, task, ticket, and weekly report",
-      },
-      {
-        label: "Create workflow",
-        prompt: "/workflow when a customer replies about OpsPilot, create support ticket, update CRM, create follow-up task, and generate weekly report",
-      },
+      ...opsPilotAgentTeam.slice(0, 3).map((agent) => ({ label: agent.label, prompt: agent.prompt })),
     ],
   },
   {
-    label: "Pick a voice",
-    hint: "Use this when the email should sound like a specific role.",
+    label: "Agent voice",
+    hint: "Use this when the output should sound like a specific role.",
     options: [
       { label: "Founder", prompt: "/email as founder write a friendly email for SaaS owners about OpsPilot, send to customer@example.com, ask them to book a demo" },
       { label: "Sales rep", prompt: "/email as sales rep write a persuasive email for operations teams about saving time, send to customer@example.com, create CRM lead and task" },
@@ -38,12 +28,10 @@ const suggestionSteps = [
     ],
   },
   {
-    label: "Update systems",
-    hint: "Ask the agent to update app records after the email.",
+    label: "Run workflows",
+    hint: "Ask the agent team to update records after the email.",
     options: [
-      { label: "CRM + task", prompt: "/agent send a professional email about OpsPilot to customer@example.com, create CRM lead and follow-up task" },
-      { label: "Support + task", prompt: "/agent write a helpful reply to customer@example.com, create support ticket and follow-up task" },
-      { label: "Everything", prompt: "/agent write a friendly email about OpsPilot to customer@example.com, create CRM lead, task, support ticket, and weekly report" },
+      ...opsPilotAgentTeam.slice(2).map((agent) => ({ label: agent.label, prompt: agent.prompt })),
     ],
   },
 ]
@@ -71,6 +59,7 @@ export function AssistantChat({
   initialConversations: ConversationPreview[]
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [messages, setMessages] = useState(initialMessages)
   const [conversationId, setConversationId] = useState<string | undefined>(initialConversationId)
   const [conversations, setConversations] = useState(initialConversations)
@@ -87,6 +76,14 @@ export function AssistantChat({
   } = useForm<z.input<typeof assistantSchema>>({
     resolver: zodResolver(assistantSchema),
   })
+
+  useEffect(() => {
+    const prompt = searchParams.get("prompt")
+
+    if (prompt) {
+      setValue("message", prompt, { shouldDirty: true, shouldValidate: true })
+    }
+  }, [searchParams, setValue])
 
   function fillPrompt(prompt: string) {
     setValue("message", prompt, { shouldDirty: true, shouldValidate: true })

@@ -55,7 +55,8 @@ export default async function SystemHealthPage() {
   ])
 
   const smtpConfigured = Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS && env.SMTP_FROM)
-  const aiConfigured = Boolean(env.AI_API_KEY || env.HCNSEC_API_KEY || env.OPENAI_API_KEY)
+  const aiConfigured = Boolean(env.AI_GATEWAY_API_KEY || env.AI_API_KEY || process.env.VERCEL)
+  const aiModel = env.AI_GATEWAY_MODEL ?? (env.AI_MODEL.includes("/") ? env.AI_MODEL : env.OPENAI_MODEL) ?? env.AI_MODEL
   const inboundConfigured = Boolean(env.INBOUND_EMAIL_WEBHOOK_SECRET || (env.IMAP_USER && env.IMAP_PASS))
 
   return (
@@ -67,7 +68,7 @@ export default async function SystemHealthPage() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <HealthCard label="Database" status="healthy" detail="Workspace data loaded successfully from PostgreSQL." />
-        <HealthCard label="AI provider" status={aiConfigured ? "healthy" : "attention"} detail={aiConfigured ? `Configured with model ${env.AI_MODEL}.` : "Missing AI_API_KEY or HCNSEC_API_KEY."} />
+        <HealthCard label="AI provider" status={aiConfigured ? "healthy" : "attention"} detail={aiConfigured ? `Configured with model ${aiModel}.` : "Missing AI_API_KEY or AI_GATEWAY_API_KEY."} />
         <HealthCard label="SMTP" status={smtpConfigured ? "healthy" : "attention"} detail={smtpConfigured ? "Outbound email adapter is configured." : "SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM are required."} />
         <HealthCard label="Inbound email" status={inboundConfigured ? "warning" : "attention"} detail={inboundConfigured ? "Inbound email is configured. Webhook providers are more stable than IMAP polling." : "Configure inbound webhook secret or IMAP credentials to receive replies."} />
       </div>

@@ -8,6 +8,7 @@ import {
   BulkDeleteProvider,
   BulkDeleteToolbar,
 } from "@/components/app/bulk-delete"
+import { AgentPromptLink } from "@/components/app/agent-prompt-link"
 
 export default async function CrmPage() {
   const user = await requireUser()
@@ -22,7 +23,13 @@ export default async function CrmPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <div>
-        <h1 className="text-3xl font-semibold">CRM</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-semibold">CRM</h1>
+          <AgentPromptLink
+            label="Use CRM Agent"
+            prompt="/agent create CRM lead for customer@example.com, summarize their interest in OpsPilot automation, create follow-up task"
+          />
+        </div>
         <p className="mt-2 text-slate-600">
           Create leads with automatic scoring, summaries, and next actions.
         </p>
