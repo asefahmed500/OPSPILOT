@@ -10,6 +10,7 @@ export async function GET() {
       where: { workspaceId: workspace.id },
       orderBy: { createdAt: "desc" },
       include: { company: true, contact: true },
+      take: 100,
     })
 
     return Response.json({ leads })

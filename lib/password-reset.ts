@@ -36,27 +36,50 @@ export async function createPasswordResetToken(userId: string) {
 
 export async function resetPasswordWithToken(token: string, password: string) {
   const tokenHash = hashResetToken(token)
-  const resetToken = await db.passwordResetToken.findUnique({
-    where: { tokenHash },
-    include: { user: true },
-  })
-
-  if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= new Date()) {
-    throw new AppError("Reset link is invalid or expired", 400, "INVALID_RESET_TOKEN")
-  }
-
   const passwordHash = await hashPassword(password)
 
-  await db.$transaction([
-    db.user.update({
+  const email = await db.$transaction(async (tx) => {
+    const resetToken = await tx.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    })
+
+    if (
+      !resetToken ||
+      resetToken.usedAt ||
+      resetToken.expiresAt <= new Date()
+    ) {
+      throw new AppError(
+        "Reset link is invalid or expired",
+        400,
+        "INVALID_RESET_TOKEN"
+      )
+    }
+
+    const claimedToken = await tx.passwordResetToken.updateMany({
+      where: {
+        id: resetToken.id,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      data: { usedAt: new Date() },
+    })
+
+    if (claimedToken.count !== 1) {
+      throw new AppError(
+        "Reset link is invalid or expired",
+        400,
+        "INVALID_RESET_TOKEN"
+      )
+    }
+
+    await tx.user.update({
       where: { id: resetToken.userId },
       data: { passwordHash },
-    }),
-    db.passwordResetToken.update({
-      where: { id: resetToken.id },
-      data: { usedAt: new Date() },
-    }),
-  ])
+    })
 
-  return resetToken.user.email
+    return resetToken.user.email
+  })
+
+  return email
 }

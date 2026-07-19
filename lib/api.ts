@@ -30,7 +30,7 @@ export function requireSameOrigin(request: Request) {
   }
 
   if (!referer) {
-    return
+    throw new AppError("Missing request origin", 403, "MISSING_ORIGIN")
   }
 
   let refererOrigin: string

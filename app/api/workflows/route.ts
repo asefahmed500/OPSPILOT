@@ -10,6 +10,7 @@ export async function GET() {
       where: { workspaceId: workspace.id },
       orderBy: { createdAt: "desc" },
       include: { runs: { orderBy: { createdAt: "desc" }, take: 3 } },
+      take: 100,
     })
 
     return Response.json({ workflows })
@@ -23,11 +24,16 @@ export async function POST(request: Request) {
     requireSameOrigin(request)
     const { workspace } = await requireRequestContext()
     const input = workflowSchema.parse(await request.json())
-    const workflow = await createWorkflow(workspace.id, input.prompt, input.name, {
-      customerEmail: input.customerEmail || undefined,
-      customerName: input.customerName,
-      company: input.company,
-    })
+    const workflow = await createWorkflow(
+      workspace.id,
+      input.prompt,
+      input.name,
+      {
+        customerEmail: input.customerEmail || undefined,
+        customerName: input.customerName,
+        company: input.company,
+      }
+    )
 
     return Response.json({ workflow }, { status: 201 })
   } catch (error) {
