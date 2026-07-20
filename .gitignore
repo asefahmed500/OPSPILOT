@@ -36,3 +36,5 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 .prisma/
+
+.vercel
