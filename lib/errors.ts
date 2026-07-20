@@ -35,8 +35,11 @@ export function errorResponse(error: unknown, fallbackStatus = 500) {
     )
   }
 
+  const message = error instanceof Error ? error.message : String(error)
+  console.error("[api] unhandled error:", error)
+
   return Response.json(
-    { error: fallbackStatus >= 500 ? "Unexpected server error" : "Request failed" },
+    { error: fallbackStatus >= 500 ? "Unexpected server error" : "Request failed", detail: message },
     { status: fallbackStatus }
   )
 }
