@@ -1,6 +1,7 @@
 import "server-only"
 import { fallbackAssistantPlan } from "@/lib/ops/assistant-planning"
 import {
+  opsPilotAgentFallbackEnabled,
   opsPilotAgentsConfigured,
   planOpsPilotCommand,
   planWorkflowActions,
@@ -9,6 +10,19 @@ import {
 } from "@/lib/agents/opspilot-agents"
 import { executeAssistantPlan } from "@/lib/ops/assistant-agent"
 import type { WorkflowAction } from "@/lib/ops/rules"
+
+function aiRequiredPlan(message: string) {
+  return {
+    actions: [
+      {
+        type: "create_task" as const,
+        title: "Configure AI agent key",
+        description: `OpsPilot needs HCNSEC_API_KEY before token-powered agents can run this request: ${message}`,
+      },
+    ],
+    reply: "Token-powered AI agents are required for this workspace. Add HCNSEC_API_KEY to enable the specialized agents.",
+  }
+}
 
 function cleanCustomerName(name: string | undefined) {
   return name?.replace(/^customer\s+name\s+/i, "").trim()
@@ -144,18 +158,18 @@ export async function generateAiText(system: string, prompt: string) {
 
 async function generateAssistantPlan(message: string) {
   if (!opsPilotAgentsConfigured) {
-    return fallbackAssistantPlan(message)
+    return opsPilotAgentFallbackEnabled ? fallbackAssistantPlan(message) : aiRequiredPlan(message)
   }
 
   try {
     return await withTimeout(planOpsPilotCommand(message), 20_000)
   } catch {
-    return fallbackAssistantPlan(message)
+    return opsPilotAgentFallbackEnabled ? fallbackAssistantPlan(message) : aiRequiredPlan(message)
   }
 }
 
 export async function generateWorkflowActions(prompt: string): Promise<WorkflowAction[] | null> {
-  if (!opsPilotAgentsConfigured) {
+  if (!opsPilotAgentsConfigured && !opsPilotAgentFallbackEnabled) {
     return null
   }
 
@@ -188,7 +202,11 @@ export async function generateWorkflowMarketingEmail({
   const fallback = fallbackEmail({ workflowName, prompt, customerName, persona, tone, audience, callToAction })
 
   if (!opsPilotAgentsConfigured) {
-    return fallback
+    if (opsPilotAgentFallbackEnabled) {
+      return fallback
+    }
+
+    throw new Error("HCNSEC_API_KEY is required for token-powered email agents.")
   }
 
   try {
@@ -211,7 +229,11 @@ export async function generateWorkflowMarketingEmail({
       body: result.body,
     }
   } catch {
-    return fallback
+    if (opsPilotAgentFallbackEnabled) {
+      return fallback
+    }
+
+    throw new Error("Token-powered email agent failed and deterministic fallback is disabled.")
   }
 }
 

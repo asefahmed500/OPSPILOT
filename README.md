@@ -10,7 +10,7 @@ Hackathon-ready AI operations MVP for CRM automation, support triage, task gener
 - Auth.js credentials auth
 - React Hook Form + Zod validation
 - Prisma 7 + PostgreSQL
-- OpenAI-compatible AI relay optional through env
+- HCNSEC OpenAI-compatible AI relay optional through env
 - SMTP email test adapter
 
 ## Environment
@@ -28,14 +28,13 @@ SMTP_USER="your-smtp-user"
 SMTP_PASS="app-password"
 SMTP_FROM="opspilot <your-sender-address>"
 AI_API_BASE_URL="https://api.hcnsec.cn/v1"
-AI_API_KEY=""
 HCNSEC_API_KEY=""
 AI_MODEL="DeepSeek-V4-Flash"
-AI_GATEWAY_API_KEY=""
-AI_GATEWAY_MODEL="openai/gpt-5.4-mini"
+AI_AGENT_FALLBACK_ENABLED=false
 ```
 
-The AI agent team uses the Vercel AI SDK Gateway. Set `AI_API_KEY` or `AI_GATEWAY_API_KEY` to the Gateway key; `AI_API_KEY` is accepted as the shared key for all specialized agents.
+The AI agent team uses the Vercel AI SDK with the HCNSEC OpenAI-compatible endpoint. Set `HCNSEC_API_KEY`; all specialized agents use that key.
+By default, `AI_AGENT_FALLBACK_ENABLED=false` means assistant agent runs require token-powered AI. Set it to `true` only if you want deterministic local fallback behavior when the AI provider is unavailable.
 
 Rotate any credentials that were pasted into chat before deploying or sharing the repo.
 

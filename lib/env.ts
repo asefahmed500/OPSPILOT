@@ -40,6 +40,7 @@ const envSchema = z.object({
   AI_MODEL: z.string().default("DeepSeek-V4-Flash"),
   AI_GATEWAY_API_KEY: z.string().optional(),
   AI_GATEWAY_MODEL: z.string().optional(),
+  AI_AGENT_FALLBACK_ENABLED: envBoolean.default(false),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().optional(),
   INBOUND_EMAIL_WEBHOOK_SECRET: z.string().min(16).optional(),
