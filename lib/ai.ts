@@ -24,6 +24,41 @@ function aiRequiredPlan(message: string) {
   }
 }
 
+function summarizeError(error: unknown) {
+  if (!error) {
+    return "unknown error"
+  }
+
+  if (error instanceof Error) {
+    return error.message || error.name || "unknown error"
+  }
+
+  if (typeof error === "string") {
+    return error
+  }
+
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return String(error)
+  }
+}
+
+function aiFailurePlan(message: string, error: unknown) {
+  const detail = summarizeError(error)
+
+  return {
+    actions: [
+      {
+        type: "create_task" as const,
+        title: "AI agent call failed",
+        description: `OpsPilot has HCNSEC_API_KEY set but the agent call failed. Request: ${message}. Error: ${detail}`,
+      },
+    ],
+    reply: `The AI agent is configured but the request failed (${detail}). Check that the HCNSEC API is reachable from the deployment region and that AI_MODEL is valid, or enable AI_AGENT_FALLBACK_ENABLED.`,
+  }
+}
+
 function cleanCustomerName(name: string | undefined) {
   return name?.replace(/^customer\s+name\s+/i, "").trim()
 }
@@ -163,8 +198,12 @@ async function generateAssistantPlan(message: string) {
 
   try {
     return await withTimeout(planOpsPilotCommand(message), 20_000)
-  } catch {
-    return opsPilotAgentFallbackEnabled ? fallbackAssistantPlan(message) : aiRequiredPlan(message)
+  } catch (error) {
+    if (opsPilotAgentFallbackEnabled) {
+      return fallbackAssistantPlan(message)
+    }
+
+    return aiFailurePlan(message, error)
   }
 }
 
@@ -175,7 +214,8 @@ export async function generateWorkflowActions(prompt: string): Promise<WorkflowA
 
   try {
     return await withTimeout(planWorkflowActions(prompt), 20_000)
-  } catch {
+  } catch (error) {
+    console.error("[opspilot] planWorkflowActions failed:", summarizeError(error))
     return null
   }
 }
@@ -228,12 +268,12 @@ export async function generateWorkflowMarketingEmail({
       subject: result.subject,
       body: result.body,
     }
-  } catch {
+  } catch (error) {
     if (opsPilotAgentFallbackEnabled) {
       return fallback
     }
 
-    throw new Error("Token-powered email agent failed and deterministic fallback is disabled.")
+    throw new Error(`Token-powered email agent failed and deterministic fallback is disabled (${summarizeError(error)}).`)
   }
 }
 

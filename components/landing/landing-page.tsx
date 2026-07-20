@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { LandingFooter } from "@/components/landing/landing-sections"
 
 const fadeInUp = (delay = 0) => ({
   initial: { opacity: 0, y: 24 },
@@ -796,6 +797,8 @@ export function  LandingPage() {
           </div>
         </motion.div>
       </section>
+
+      <LandingFooter />
     </main>
   )
 }
